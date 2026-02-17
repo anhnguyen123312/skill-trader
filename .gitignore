@@ -5,6 +5,10 @@ results/logs/
 # MT5 generated configs
 config/last_backtest.ini
 
+# Credentials (NEVER commit these)
+config/credentials.env
+config/mt5-credentials/
+
 # OMC state
 .omc/
 

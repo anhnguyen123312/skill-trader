@@ -43,6 +43,63 @@ test -f "$MT5_BASE/config/accounts.dat" || echo "WARNING: No cached broker crede
 If MT5 app is missing: `brew install --cask metatrader5` or download from metatrader5.com.
 All other dependencies (Wine, MetaEditor, Terminal) come bundled with the MT5 app.
 
+## Broker Login
+
+MT5 requires cached credentials in encrypted `accounts.dat`. Three ways to set up:
+
+### Option 1: Auto-Login Script (Recommended)
+
+```bash
+# Login with credentials (launches MT5, caches credentials, exits)
+./scripts/login.sh <LOGIN> <PASSWORD> <SERVER>
+
+# Example
+./scripts/login.sh 128364028 Ready@123 Exness-MT5Real7
+
+# Check status
+./scripts/login.sh
+
+# Backup credentials for later restore
+./scripts/login.sh --backup
+
+# Restore from backup
+./scripts/login.sh --restore
+```
+
+### Option 2: Environment Variables
+
+```bash
+export MT5_LOGIN=128364028
+export MT5_PASSWORD=Ready@123
+export MT5_SERVER=Exness-MT5Real7
+./scripts/run.sh SimpleMA_EA --no-visual
+```
+
+### Option 3: Credentials File
+
+```bash
+cp config/credentials.env.example config/credentials.env
+# Edit config/credentials.env with your values
+```
+
+### How MT5 Login Works
+
+1. MT5 stores credentials in encrypted `accounts.dat` + `servers.dat` (binary, not editable)
+2. `Password=` field in `[Common]` section of INI is sent to MT5 on launch
+3. MT5 uses the password to authenticate and caches result in `accounts.dat`
+4. After first successful login, `accounts.dat` is sufficient (no password needed)
+5. If `accounts.dat` is missing/expired, password is required again
+
+### Credential Files
+
+| File | Type | Purpose |
+|------|------|---------|
+| `accounts.dat` | Binary (encrypted) | Cached login credentials |
+| `servers.dat` | Binary (encrypted) | Broker server configs |
+| `common.ini` | UTF-16LE | Last login/server (plaintext, no password) |
+
+IMPORTANT: `config/credentials.env` and `config/mt5-credentials/` are in `.gitignore`. Never commit passwords.
+
 ## Key Paths
 
 ```
@@ -125,6 +182,12 @@ EA-OAT-v3/
 File: `config/backtest.template.ini`
 
 ```ini
+[Common]
+Login=__LOGIN__
+Password=__PASSWORD__
+Server=__SERVER__
+KeepPrivate=0
+NewsEnable=0
 [Tester]
 Expert=__EA_NAME__
 Symbol=__SYMBOL__
@@ -132,19 +195,19 @@ Period=__PERIOD__
 Model=4
 FromDate=__FROM_DATE__
 ToDate=__TO_DATE__
-Deposit=1000
+Deposit=__DEPOSIT__
 Currency=USD
-Leverage=1:1000
+Leverage=__LEVERAGE__
 ExecutionMode=0
 Optimization=0
 OptimizationCriterion=1
 Visual=__VISUAL__
 ShutdownTerminal=1
-Login=128364028
-Server=Exness-MT5Real7
+Login=__LOGIN__
+Server=__SERVER__
 Report=__EA_NAME___Report
 ReplaceReport=1
-Delay=100
+Delay=__DELAY__
 ```
 
 ### Placeholders (replaced by `backtest.sh` via sed)
@@ -157,6 +220,12 @@ Delay=100
 | `__FROM_DATE__` | Start YYYY.MM.DD | 2024.01.01 |
 | `__TO_DATE__` | End YYYY.MM.DD | 2024.12.31 |
 | `__VISUAL__` | 0=headless, 1=GUI | 1 |
+| `__LOGIN__` | Broker account number | 128364028 |
+| `__PASSWORD__` | Broker password | (empty) |
+| `__SERVER__` | Broker server | Exness-MT5Real7 |
+| `__DEPOSIT__` | Starting capital USD | 1000 |
+| `__LEVERAGE__` | Broker leverage | 1:1000 |
+| `__DELAY__` | Slippage ms | 100 |
 
 ### Extending Config
 

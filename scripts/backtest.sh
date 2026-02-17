@@ -5,6 +5,11 @@
 #
 # Period values: M1=1, M5=5, M15=15, M30=30, H1=16385, H4=16388, D1=16408
 # Default: M15, XAUUSD, 2024.01.01-2024.12.31, Visual=ON
+#
+# Credentials (in priority order):
+#   1. Environment variables: MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
+#   2. Credentials file: config/credentials.env
+#   3. Defaults: 128364028 / (empty) / Exness-MT5Real7
 
 set -e
 
@@ -29,6 +34,23 @@ for arg in "$@"; do
     fi
 done
 
+# --- Load credentials ---
+PROJECT_ROOT="/Volumes/Data/Git/EA-OAT-v3"
+CRED_FILE="$PROJECT_ROOT/config/credentials.env"
+
+# Source credentials file if exists (sets MT5_LOGIN, MT5_PASSWORD, MT5_SERVER)
+if [ -f "$CRED_FILE" ]; then
+    source "$CRED_FILE"
+fi
+
+# Apply with defaults
+MT5_LOGIN="${MT5_LOGIN:-128364028}"
+MT5_PASSWORD="${MT5_PASSWORD:-}"
+MT5_SERVER="${MT5_SERVER:-Exness-MT5Real7}"
+MT5_DEPOSIT="${MT5_DEPOSIT:-1000}"
+MT5_LEVERAGE="${MT5_LEVERAGE:-1:1000}"
+MT5_DELAY="${MT5_DELAY:-100}"
+
 # --- Map period name to MT5 value ---
 case "$PERIOD_NAME" in
     M1)  PERIOD=1 ;;
@@ -41,21 +63,33 @@ case "$PERIOD_NAME" in
     *)   PERIOD="$PERIOD_NAME" ;;
 esac
 
-PROJECT_ROOT="/Volumes/Data/Git/EA-OAT-v3"
 WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
 MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"
 TEMPLATE="$PROJECT_ROOT/config/backtest.template.ini"
 
-echo "=== EA-OAT-v3 Backtest Launcher ==="
+echo "=== skill-trader Backtest Launcher ==="
 echo "EA:       $EA_NAME"
 echo "Symbol:   $SYMBOL"
 echo "Period:   $PERIOD_NAME ($PERIOD)"
 echo "Range:    $FROM_DATE -> $TO_DATE"
-echo "Leverage: 1:1000"
-echo "Delay:    100ms"
+echo "Login:    $MT5_LOGIN"
+echo "Server:   $MT5_SERVER"
+echo "Deposit:  \$$MT5_DEPOSIT"
+echo "Leverage: $MT5_LEVERAGE"
+echo "Delay:    ${MT5_DELAY}ms"
 echo "Visual:   $([ "$VISUAL" = "1" ] && echo 'ON' || echo 'OFF')"
 echo ""
+
+# --- Check credentials ---
+if [ ! -f "$MT5_BASE/config/accounts.dat" ] && [ -z "$MT5_PASSWORD" ]; then
+    echo "WARNING: No cached credentials and no password provided."
+    echo "         Backtest may fail to connect."
+    echo ""
+    echo "Fix: ./scripts/login.sh $MT5_LOGIN <PASSWORD> $MT5_SERVER"
+    echo " Or: export MT5_PASSWORD=yourpassword"
+    echo ""
+fi
 
 # --- Step 1: Verify .ex5 exists ---
 if [ ! -f "$MT5_BASE/MQL5/Experts/${EA_NAME}.ex5" ]; then
@@ -77,6 +111,12 @@ sed -e "s/__EA_NAME__/$EA_NAME/g" \
     -e "s/__FROM_DATE__/$FROM_DATE/" \
     -e "s/__TO_DATE__/$TO_DATE/" \
     -e "s/__VISUAL__/$VISUAL/" \
+    -e "s/__LOGIN__/$MT5_LOGIN/g" \
+    -e "s/__PASSWORD__/$MT5_PASSWORD/" \
+    -e "s/__SERVER__/$MT5_SERVER/g" \
+    -e "s/__DEPOSIT__/$MT5_DEPOSIT/" \
+    -e "s/__LEVERAGE__/$MT5_LEVERAGE/" \
+    -e "s/__DELAY__/$MT5_DELAY/" \
     "$TEMPLATE" | sed 's/$/\r/' > "$CONFIG_FILE"
 
 echo "[2/4] Config generated (CRLF)"
