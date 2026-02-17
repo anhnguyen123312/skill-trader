@@ -1,1 +1,512 @@
-../../../skills/mt5-backtest/SKILL.md
+---
+name: mt5-backtest
+description: Use when building, backtesting, or analyzing MT5 Expert Advisors on macOS. Compiles MQ5 source via Wine MetaEditor, runs backtest with real tick data, collects CSV results with trade-by-trade analysis.
+---
+
+# MT5 Build & Backtest Pipeline
+
+## When to Use
+
+- User says "backtest EA", "run backtest", "compile EA", "test EA"
+- User wants to build and test an MQL5 Expert Advisor
+- User asks to analyze backtest results or trade logs
+- User wants to run E2E pipeline: compile -> backtest -> monitor -> collect
+
+## Prerequisites
+
+Run this check before any operation. If anything fails, guide user to install.
+
+```bash
+# 1. MetaTrader 5 app (includes Wine + MetaEditor + Terminal)
+test -d "/Applications/MetaTrader 5.app" || echo "MISSING: Install MetaTrader 5 from https://www.metatrader5.com/en/download"
+
+# 2. Wine64 (bundled with MT5 app - NOT separately installed)
+WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"
+test -f "$WINE" || echo "MISSING: Wine64 not found in MT5 bundle"
+
+# 3. MT5 data directory (created on first MT5 launch)
+WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
+test -d "$WINEPREFIX" || echo "MISSING: Launch MetaTrader 5 app once to create data directory"
+
+# 4. MetaEditor + Terminal executables
+MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
+test -f "$MT5_BASE/metaeditor64.exe" || echo "MISSING: metaeditor64.exe"
+test -f "$MT5_BASE/terminal64.exe" || echo "MISSING: terminal64.exe"
+
+# 5. iconv (macOS built-in, required for UTF-16LE log parsing)
+which iconv > /dev/null || echo "MISSING: iconv (should be built-in on macOS)"
+
+# 6. Broker login cached (MT5 must have logged in at least once)
+test -f "$MT5_BASE/config/accounts.dat" || echo "WARNING: No cached broker credentials. Run ./.skill-trader/backtest/scripts/login.sh"
+```
+
+If MT5 app is missing: `brew install --cask metatrader5` or download from metatrader5.com.
+All other dependencies (Wine, MetaEditor, Terminal) come bundled with the MT5 app.
+
+## Broker Login
+
+MT5 requires cached credentials for backtesting. The login script handles everything automatically.
+
+### Interactive Login (Recommended)
+
+```bash
+./.skill-trader/backtest/scripts/login.sh
+# Login [128364028]:          <- Enter = use default
+# Server [Exness-MT5Real7]:   <- Enter = use default
+# Password:                   <- hidden input, required
+```
+
+The login script:
+1. Prompts for Login, Server, Password (step by step, with defaults)
+2. Auto-restores `servers.dat` from backup if missing
+3. Launches MT5 with `[Common]` + `[Tester]` config (mini-backtest for graceful shutdown)
+4. Monitors MT5 log for authorization success/failure
+5. Waits for MT5 graceful exit (via `ShutdownTerminal=1`)
+6. Saves password to `.skill-trader/backtest/config/credentials.env` (chmod 600, gitignored)
+7. Auto-backs up credentials on success
+
+### Login Management Commands
+
+```bash
+./.skill-trader/backtest/scripts/login.sh                          # Interactive login (prompts step by step)
+./.skill-trader/backtest/scripts/login.sh <LOGIN> <PASS> <SERVER>  # Direct login with all args
+./.skill-trader/backtest/scripts/login.sh --status                 # Check credential status
+./.skill-trader/backtest/scripts/login.sh --backup                 # Backup credential files
+./.skill-trader/backtest/scripts/login.sh --restore                # Restore from backup
+```
+
+### How MT5 Authentication Works (Wine macOS)
+
+```
+login.sh                          backtest.sh
+   |                                  |
+   v                                  v
+[Common]                          [Common]
+  Login=128364028                   Login=128364028
+  Password=Ready@123                Password=Ready@123    <- from credentials.env
+  Server=Exness-MT5Real7            Server=Exness-MT5Real7
+[Tester]                          [Tester]
+  ShutdownTerminal=1                Expert=SimpleMA_EA
+  (mini 1-day backtest)             ShutdownTerminal=1
+   |                                  |
+   v                                  v
+MT5 authenticates              MT5 authenticates
+   |                           (no login popup!)
+   v                                  |
+accounts.dat created                  v
+credentials.env saved           Backtest runs automatically
+```
+
+### Credential Files
+
+| File | Location | Size | Purpose |
+|------|----------|------|---------|
+| `accounts.dat` | MT5 config/ | ~8KB | **REQUIRED** - Encrypted cached login |
+| `servers.dat` | MT5 config/ | ~900KB | Broker server configs (full version from backup) |
+| `common.ini` | MT5 config/ | ~1.7KB (full) or ~242B (login-generated) | Last login info, Environment field |
+| `credentials.env` | .skill-trader/backtest/config/ | ~100B | Login/Password/Server for backtest.sh |
+
+### Credential Priority (highest first)
+
+1. Environment variables: `MT5_LOGIN`, `MT5_PASSWORD`, `MT5_SERVER`
+2. `.skill-trader/backtest/config/credentials.env` (auto-generated by `login.sh`)
+3. Cached `common.ini` (for login/server defaults only)
+4. Hardcoded defaults: `128364028` / `Exness-MT5Real7`
+
+IMPORTANT: `.skill-trader/backtest/config/credentials.env` and `.skill-trader/backtest/config/mt5-credentials/` are in `.gitignore`. Never commit passwords.
+
+## Key Paths
+
+```
+WINEPREFIX  = ~/Library/Application Support/net.metaquotes.wine.metatrader5
+MT5_BASE    = $WINEPREFIX/drive_c/Program Files/MetaTrader 5
+WINE        = /Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64
+EXPERTS_DIR = $MT5_BASE/MQL5/Experts
+INCLUDE_DIR = $MT5_BASE/MQL5/Include
+CSV_OUTPUT  = $WINEPREFIX/drive_c/users/crossover/AppData/Roaming/MetaQuotes/Terminal/Common/Files
+```
+
+CRITICAL: The native macOS MT5 app IS a Wine wrapper (bundle ID: `net.metaquotes.wine.MetaTrader5`). Native app and Wine share the SAME data directory.
+
+## Project Structure
+
+```
+EA-OAT-v3/
+  code/experts/                          # EA source files (.mq5)
+  code/include/                          # Shared MQL5 includes (optional)
+  .skill-trader/
+    backtest/
+      config/
+        backtest.template.ini            # [Tester] config with __PLACEHOLDERS__
+        credentials.env                  # Auto-generated by login.sh (gitignored)
+        mt5-credentials/                 # Backup: accounts.dat, servers.dat, common.ini (gitignored)
+        last_backtest.ini                # Last generated config (debug)
+      scripts/
+        login.sh                         # Login & credential manager (interactive)
+        compile.sh                       # Step 1: Compile .mq5 -> .ex5
+        backtest.sh                      # Step 2: Launch MT5 backtest (interactive or CLI)
+        monitor.sh                       # Step 3: Wait for completion
+        collect.sh                       # Step 4: Parse results
+        run.sh                           # E2E orchestrator (all 4 steps)
+      results/                           # CSV outputs
+      results/logs/                      # MT5 tester logs
+```
+
+## How to Run
+
+### Interactive Mode (Recommended)
+
+```bash
+# Login first (only needed once, or after credentials expire)
+./.skill-trader/backtest/scripts/login.sh
+
+# Run backtest - prompts for all params
+./.skill-trader/backtest/scripts/backtest.sh
+# Available EAs:
+#   1. AdvancedEA
+#   2. SimpleMA_EA
+# EA [1]:
+# Symbol [XAUUSD]:
+# Period [M15]:
+# From [2024.01.01]:
+# To [2024.12.31]:
+# Visual? (y/n) [n]:
+```
+
+### CLI Mode
+
+```bash
+# E2E (Single Command)
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [--no-visual]
+
+# Examples
+./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD H1 2023.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh MyEA EURUSD M5 2024.06.01 2024.12.31 --no-visual
+
+# Individual Steps
+./.skill-trader/backtest/scripts/compile.sh SimpleMA_EA
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/monitor.sh 30
+./.skill-trader/backtest/scripts/collect.sh SimpleMA_EA XAUUSD M15
+```
+
+### Period Mapping
+
+| Name | MT5 Value |
+|------|-----------|
+| M1   | 1         |
+| M5   | 5         |
+| M15  | 15        |
+| M30  | 30        |
+| H1   | 16385     |
+| H4   | 16388     |
+| D1   | 16408     |
+
+## Config Template
+
+File: `.skill-trader/backtest/config/backtest.template.ini`
+
+The template contains ONLY the `[Tester]` section. `[Common]` (with Login/Password/Server) is generated dynamically by `backtest.sh` to avoid the empty Password= corruption bug.
+
+```ini
+[Tester]
+Expert=__EA_NAME__
+Symbol=__SYMBOL__
+Period=__PERIOD__
+Model=4
+FromDate=__FROM_DATE__
+ToDate=__TO_DATE__
+Deposit=__DEPOSIT__
+Currency=USD
+Leverage=__LEVERAGE__
+ExecutionMode=0
+Optimization=0
+OptimizationCriterion=1
+Visual=__VISUAL__
+ShutdownTerminal=1
+Login=__LOGIN__
+Server=__SERVER__
+Report=__EA_NAME___Report
+ReplaceReport=1
+Delay=__DELAY__
+```
+
+### How backtest.sh generates the final config
+
+```
+[Common]                          <- Always generated by backtest.sh
+Login=128364028                   <- Always included
+Password=Ready@123                <- Only if credentials.env has MT5_PASSWORD
+Server=Exness-MT5Real7            <- Always included
+KeepPrivate=0
+NewsEnable=0
+[Tester]                          <- From template with sed replacements
+Expert=SimpleMA_EA
+Symbol=XAUUSD
+...
+```
+
+### Placeholders (replaced by `backtest.sh` via sed)
+
+| Placeholder | Replaced By | Default |
+|-------------|-------------|---------|
+| `__EA_NAME__` | EA name (no .mq5) | required |
+| `__SYMBOL__` | Trading symbol | XAUUSD |
+| `__PERIOD__` | MT5 period value | 15 (M15) |
+| `__FROM_DATE__` | Start YYYY.MM.DD | 2024.01.01 |
+| `__TO_DATE__` | End YYYY.MM.DD | 2024.12.31 |
+| `__VISUAL__` | 0=headless, 1=GUI | 0 |
+| `__LOGIN__` | Broker account number | 128364028 |
+| `__SERVER__` | Broker server | Exness-MT5Real7 |
+| `__DEPOSIT__` | Starting capital USD | 1000 |
+| `__LEVERAGE__` | Broker leverage | 1:1000 |
+| `__DELAY__` | Slippage ms | 100 |
+
+## Pipeline Steps (What Each Script Does)
+
+### Step 1: `compile.sh` - Compile EA
+
+1. Validate `.mq5` source in `code/experts/`
+2. Copy source + includes to MT5 directories
+3. Run MetaEditor via Wine:
+   ```bash
+   WINEPREFIX="$WINEPREFIX" "$WINE" metaeditor64.exe /compile:"MQL5\\Experts\\<EA>.mq5" /log 2>/dev/null || true
+   ```
+4. Parse compile log (UTF-16LE -> UTF-8 via `iconv`)
+5. Verify `.ex5` binary exists
+
+### Step 2: `backtest.sh` - Launch Backtest
+
+1. Load credentials from `credentials.env` / ENV vars / defaults
+2. In interactive mode: prompt for EA, Symbol, Period, Date, Visual
+3. Verify `.ex5` exists
+4. Generate `[Common]` section dynamically (Login + Server always, Password only if provided)
+5. Append `[Tester]` from template (sed placeholder replacement)
+6. Convert to Windows CRLF line endings: `sed 's/$/\r/'`
+7. Write config to `C:\autobacktest.ini` (Wine C: root - NO spaces!)
+8. Clean old CSV results
+9. Kill existing MT5: `pkill -f "terminal64"`
+10. Launch via Wine:
+    ```bash
+    WINEPREFIX="$WINEPREFIX" "$WINE" terminal64.exe /config:C:\\autobacktest.ini /portable 2>/dev/null &
+    ```
+
+### Step 3: `monitor.sh` - Wait for Completion
+
+1. Poll every 5 seconds for CSV or MT5 exit
+2. CSV found (modification time > start time) -> success
+3. MT5 exited without CSV -> 3s grace period, then fail
+4. Configurable timeout (default: 30 minutes)
+
+### Step 4: `collect.sh` - Parse Results
+
+1. Find CSV in Common/Files (checks both `crossover` and `$(whoami)` user dirs)
+2. Convert UTF-16LE -> UTF-8
+3. Save to `.skill-trader/backtest/results/<date>_<EA>_<SYMBOL>_<PERIOD>.csv`
+4. Copy tester logs to `.skill-trader/backtest/results/logs/`
+5. Display summary: Win Rate, Trades, Profit, Drawdown, Profit Factor, Sharpe
+6. Display trade-by-trade log: ticket, type, time, price, P/L, reason
+
+## EA Requirements
+
+The EA MUST implement `OnTester()` with CSV export to Common/Files:
+
+```mql5
+double OnTester()
+{
+    string filename = "backtest_results.csv";
+    int fileHandle = FileOpen(filename, FILE_WRITE|FILE_CSV|FILE_COMMON, '\t');
+    if(fileHandle != INVALID_HANDLE)
+    {
+        FileWrite(fileHandle, "Metric", "Value");
+        FileWrite(fileHandle, "Win Rate %", DoubleToString(winRate, 2));
+        FileWrite(fileHandle, "Total Trades", IntegerToString(totalTrades));
+        FileWrite(fileHandle, "Net Profit", DoubleToString(netProfit, 2));
+        FileWrite(fileHandle, "Max DD %", DoubleToString(maxDD, 2));
+        FileWrite(fileHandle, "Profit Factor", DoubleToString(pf, 2));
+        FileWrite(fileHandle, "Risk Reward", DoubleToString(rr, 2));
+        FileWrite(fileHandle, "Sharpe Ratio", DoubleToString(sharpe, 2));
+        FileWrite(fileHandle, "");
+        FileWrite(fileHandle, "Trade Details");
+        FileWrite(fileHandle, "Ticket", "Type", "Open Time", "Close Time", "Open Price", "Close Price", "Profit", "Comment");
+        // ... loop through trades
+        FileClose(fileHandle);
+    }
+    return profitFactor;
+}
+```
+
+Key: `FILE_COMMON` flag writes to Common/Files directory (shared across terminals).
+
+## Debugging
+
+### Log Locations
+
+| Log | Path | Contains |
+|-----|------|----------|
+| Terminal | `$MT5_BASE/logs/YYYYMMDD.log` | Startup, config, network, auth |
+| Tester | `$MT5_BASE/Tester/logs/YYYYMMDD.log` | Tester orchestration |
+| Agent | `$MT5_BASE/Tester/Agent-127.0.0.1-3000/logs/YYYYMMDD.log` | EA output, trades |
+
+All logs are UTF-16LE. Read with:
+```bash
+iconv -f UTF-16LE -t UTF-8 "$LOG_PATH" | tr -d '\r'
+```
+
+### Success Markers in Logs
+
+```
+launched with C:\autobacktest.ini              # Config loaded
+successfully initialized from start config     # Settings applied
+'128364028': authorized on Exness-MT5Real7     # Auth success
+automatical testing started                    # Backtest running
+last test passed with result "successfully finished"  # Complete
+exit with code 0                               # Clean shutdown
+```
+
+### Failure Markers in Logs
+
+```
+'128364028': authorization failed              # Wrong password or expired
+account is not specified in the Tester         # Missing Login in [Tester] or accounts.dat
+not synchronized with Exness-MT5Real7          # Missing Environment in common.ini
+cannot load config "..."" at start             # Spaces in config path
+```
+
+## Known Issues & Fixes
+
+### 1. MT5 Tester Shows Login Popup (CRITICAL)
+
+**Symptom:** Backtest launches but MT5 shows a "Login" dialog asking for password. Backtest hangs until user manually enters password or cancels.
+
+**Root Cause:** After `login.sh` authenticates, MT5 generates a minimal `common.ini` (~242 bytes) that lacks the `Environment` field (encrypted session token). Without this field, the MT5 Tester cannot auto-authenticate and shows the login popup.
+
+**Troubleshooting steps taken:**
+1. Checked MT5 terminal logs - saw `authorized on Exness-MT5Real7` (main terminal connected OK)
+2. Checked Tester agent logs - saw `account is not specified` (Tester couldn't auth separately)
+3. Compared common.ini sizes: login-generated = 242B vs working backup = 1716B
+4. The 1716B version has `Environment=F008C72935...` (64-char hex encrypted session)
+5. The 242B version only has basic fields (Login, Server, no Environment)
+6. Discovered: `Password=` in `[Common]` of backtest config allows Tester to authenticate directly
+
+**Fix:** `login.sh` now saves password to `.skill-trader/backtest/config/credentials.env` after successful auth. `backtest.sh` reads this file and includes `Password=` in the dynamically generated `[Common]` section. The Tester uses the password to authenticate without showing a popup.
+
+**Prevention:** Backup protects `common.ini` - won't overwrite a larger backup with a smaller login-generated one.
+
+### 2. Empty Password= Corrupts accounts.dat (CRITICAL)
+
+**Symptom:** After backtest, MT5 deletes cached account from `accounts.dat`. Next backtest fails with "account is not specified".
+
+**Root Cause:** Including `Password=` (empty value) in `[Common]` section causes MT5 to attempt authentication with an empty password. The server disconnects, and MT5 DELETES the account from `accounts.dat`.
+
+**Troubleshooting steps taken:**
+1. Terminal log showed: `Password=` in [Common] section at launch
+2. Log showed: server disconnect immediately after auth attempt
+3. `accounts.dat` shrank from ~8KB to ~3KB (account entry removed)
+4. Subsequent launches showed "account is not specified"
+
+**Fix:** `[Common]` section is now generated dynamically by `backtest.sh`:
+- `Password=<value>` is ONLY included when `MT5_PASSWORD` is non-empty
+- `Login=` and `Server=` are always included (tells MT5 which cached account to use)
+- The template file (`backtest.template.ini`) no longer contains `[Common]` section
+
+### 3. pkill During "Scanning Network" Corrupts accounts.dat
+
+**Symptom:** Login script authenticates successfully, but subsequent backtest fails. `accounts.dat` is corrupt.
+
+**Root Cause:** After MT5 authorizes, it enters a "scanning network for access points" phase. Killing MT5 (`pkill -f terminal64`) during this phase corrupts `accounts.dat` because the file is being written.
+
+**Troubleshooting steps taken:**
+1. Login log showed: `authorized on Exness-MT5Real7` (success)
+2. Script killed MT5 3-8 seconds after auth
+3. Next launch: "account is not specified" (accounts.dat corrupt)
+4. Tried increasing sleep (8s, 15s, 30s) - still corrupt randomly
+5. Discovered: MT5 writes accounts.dat asynchronously during network scan
+
+**Fix:** Login script now uses a mini-backtest with `ShutdownTerminal=1` in `[Tester]` section. This triggers MT5's graceful shutdown sequence after the mini-backtest completes, ensuring all files are written cleanly. The script waits up to 60s for MT5 to exit on its own, never using `pkill` during normal operation.
+
+### 4. Login Script Matches Old Log Lines (False Positive)
+
+**Symptom:** Login script reports "LOGIN SUCCESSFUL" immediately, but credentials are not actually cached.
+
+**Root Cause:** MT5 appends to daily log files. The script's `grep "'128364028': authorized on"` matched authorization lines from previous sessions in the same day.
+
+**Troubleshooting steps taken:**
+1. Login script reported success in <3 seconds (too fast)
+2. But MT5 was still starting up (hadn't even connected yet)
+3. Found: log file had old auth lines from earlier sessions
+4. First tried byte offset with `dd` - broke UTF-16LE alignment (every other byte was null)
+5. Switched to line count offset approach
+
+**Fix:** Before launching MT5, record the current line count of the decoded log. After launch, only check NEW lines using `tail -n +$((LOG_LINES_BEFORE + 1))`. This ensures only entries from the current session are matched.
+
+### 5. Login-Generated servers.dat is Incomplete
+
+**Symptom:** Login succeeds but backtest fails with "not synchronized with trade server".
+
+**Root Cause:** When MT5 logs in fresh (no existing `servers.dat`), it creates a minimal `servers.dat` (~18KB). The full version from a mature MT5 installation is ~900KB and contains complete broker server configs needed for backtesting.
+
+**Fix:** Login script auto-restores `servers.dat` from backup before launching MT5 (Step 0). The backup contains the full 900KB version. Backup protection ensures smaller files don't overwrite larger ones.
+
+### 6. Wine stderr Causes Script Failure
+
+**Symptom:** Script exits on `set -e` from Wine debug output (`fixme:hid:...`).
+**Fix:** `2>/dev/null` on all Wine commands + `|| true` (exit codes unreliable). Check output files instead.
+
+### 7. Compile Log Garbled Text
+
+**Symptom:** `cat`/`grep` can't parse compile log.
+**Cause:** UTF-16LE encoding.
+**Fix:** `iconv -f UTF-16LE -t UTF-8 "$LOG_FILE" 2>/dev/null | tr -d '\r'`
+
+### 8. Config Path with Spaces Breaks Auto-Start (CRITICAL)
+
+**Symptom:** `cannot load config "C:\Program Files\...\autobacktest.ini"" at start` (trailing double-quote).
+**Cause:** Wine mangles paths with spaces. No shell quoting fixes this.
+**Fix:** Place config at `C:\autobacktest.ini` (Wine C: root = `$WINEPREFIX/drive_c/`).
+
+### 9. macOS `open -a` Doesn't Pass Arguments
+
+**Symptom:** MT5 opens but ignores `/config:` argument.
+**Cause:** `open --args` doesn't reliably pass args to Wine wrapper apps.
+**Fix:** Launch via Wine directly: `"$WINE" terminal64.exe /config:C:\\autobacktest.ini /portable`
+
+### 10. Monitor Misses Fast Backtests
+
+**Symptom:** Backtest finishes in 8-10s, monitor polls at 30s, reports failure.
+**Fix:** Poll every 5 seconds + 3s grace period after MT5 exit.
+
+### 11. CSV Location Varies by Wine User
+
+**Symptom:** CSV not found at expected path.
+**Fix:** Check both `crossover` and `$(whoami)` user directories.
+
+### 12. Visual=1 May Not Auto-Start
+
+**Observation:** `Visual=0` auto-starts reliably. `Visual=1` may require manual Start click.
+**Recommendation:** Always use `--no-visual` for automated/CI runs.
+
+## Troubleshooting Quick Reference
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Login popup during backtest | Missing Password in [Common] | Run `./.skill-trader/backtest/scripts/login.sh` (saves credentials.env) |
+| "account is not specified" | accounts.dat corrupt/missing | `./.skill-trader/backtest/scripts/login.sh --restore` then re-login |
+| "not synchronized" | servers.dat incomplete or common.ini missing | `./.skill-trader/backtest/scripts/login.sh --restore` |
+| `cannot load config "..."" at start` | Spaces in config path | Config must be at `C:\autobacktest.ini` |
+| Login success but backtest fails | common.ini missing Environment | credentials.env provides Password as fallback |
+| Empty Password= corrupts auth | Old template had [Common] with empty Password | Template now has only [Tester]; [Common] is dynamic |
+| No CSV after test | EA missing `OnTester()` | Add `OnTester()` with `FILE_COMMON` |
+| Login script false positive | Matched old log lines | Uses line count offset for new entries only |
+| Wine warnings in output | Wine debug messages | Cosmetic, ignore (redirected to /dev/null) |
+| Garbled log output | UTF-16LE encoding | Use `iconv -f UTF-16LE -t UTF-8` |
+| Monitor timeout | Slow backtest or MT5 hung | Increase timeout: `./.skill-trader/backtest/scripts/monitor.sh 60` |
+
+## Broker Account
+
+```
+Login:    128364028
+Password: Ready@123
+Server:   Exness-MT5Real7
+```
