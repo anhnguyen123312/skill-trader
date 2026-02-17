@@ -1,0 +1,21 @@
+{
+  "name": "skill-trader",
+  "version": "1.0.0",
+  "description": "MT5 Expert Advisor build & backtest pipeline for macOS. Compile MQ5, backtest with real tick data, collect trade-by-trade results.",
+  "author": {
+    "name": "anhnguyen123312"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/anhnguyen123312/skill-trader",
+  "keywords": [
+    "mt5",
+    "metatrader",
+    "backtest",
+    "trading",
+    "expert-advisor",
+    "mql5",
+    "wine",
+    "macos"
+  ],
+  "skills": "./skills/"
+}

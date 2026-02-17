@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skill-trader",
+  "description": "Trading skills for Claude Code - MT5 EA build, backtest, and analysis pipeline",
+  "owner": {
+    "name": "anhnguyen123312"
+  },
+  "plugins": [
+    {
+      "name": "skill-trader",
+      "description": "MT5 Expert Advisor build & backtest pipeline for macOS. Compile MQ5, backtest with real tick data, collect trade-by-trade results.",
+      "version": "1.0.0",
+      "source": ".",
+      "author": {
+        "name": "anhnguyen123312"
+      },
+      "category": "development",
+      "tags": ["mt5", "trading", "backtest", "macos"]
+    }
+  ]
+}
