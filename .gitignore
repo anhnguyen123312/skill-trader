@@ -1,0 +1,17 @@
+# Results (generated, large CSVs)
+results/*.csv
+results/logs/
+
+# MT5 generated configs
+config/last_backtest.ini
+
+# OMC state
+.omc/
+
+# macOS
+.DS_Store
+
+# Editor
+*.swp
+*.swo
+*~
