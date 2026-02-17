@@ -14,7 +14,8 @@ fi
 
 EA_NAME="$1"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
 EA_SOURCE="$PROJECT_ROOT/code/experts/${EA_NAME}.mq5"
 
 # --- Wine/MT5 paths ---

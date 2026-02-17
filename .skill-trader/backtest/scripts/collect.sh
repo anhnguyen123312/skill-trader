@@ -10,7 +10,8 @@ SYMBOL="${2:-XAUUSD}"
 PERIOD="${3:-H1}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
 WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
 MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 DATE=$(date +%Y-%m-%d)
@@ -51,7 +52,7 @@ fi
 echo "[1/4] CSV found: $CSV_PATH"
 
 # --- Step 2: Convert and copy ---
-RESULTS_DIR="$PROJECT_ROOT/results"
+RESULTS_DIR="$PLUGIN_DIR/results"
 mkdir -p "$RESULTS_DIR/logs"
 
 CSV_DEST="$RESULTS_DIR/${DATE}_${EA_NAME}_${SYMBOL}_${PERIOD}.csv"

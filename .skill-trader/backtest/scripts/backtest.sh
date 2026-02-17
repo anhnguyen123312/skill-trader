@@ -9,12 +9,13 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PLUGIN_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$PLUGIN_DIR/../.." && pwd)"
 WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
 MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"
-TEMPLATE="$PROJECT_ROOT/config/backtest.template.ini"
-CRED_FILE="$PROJECT_ROOT/config/credentials.env"
+TEMPLATE="$PLUGIN_DIR/config/backtest.template.ini"
+CRED_FILE="$PLUGIN_DIR/config/credentials.env"
 
 # --- Load credentials ---
 if [ -f "$CRED_FILE" ]; then
@@ -188,7 +189,7 @@ fi
 echo "[2/4] Config generated (CRLF)"
 
 # Also save a copy in project
-cp "$CONFIG_FILE" "$PROJECT_ROOT/config/last_backtest.ini"
+cp "$CONFIG_FILE" "$PLUGIN_DIR/config/last_backtest.ini"
 
 # --- Step 3: Clean old results ---
 CSV_COMMON="$WINEPREFIX/drive_c/users/$(whoami)/AppData/Roaming/MetaQuotes/Terminal/Common/Files"

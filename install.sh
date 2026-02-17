@@ -57,21 +57,21 @@ if [ "$INSTALL_MODE" = "full" ]; then
     echo ""
     echo "Installing pipeline scripts..."
 
-    mkdir -p scripts config code/experts
+    mkdir -p .skill-trader/backtest/scripts .skill-trader/backtest/config code/experts
 
     for script in login.sh compile.sh backtest.sh monitor.sh collect.sh run.sh; do
-        curl -fsSL "$BASE_URL/scripts/$script" -o "scripts/$script"
-        chmod +x "scripts/$script"
+        curl -fsSL "$BASE_URL/.skill-trader/backtest/scripts/$script" -o ".skill-trader/backtest/scripts/$script"
+        chmod +x ".skill-trader/backtest/scripts/$script"
     done
-    echo "[OK] Scripts installed: scripts/"
+    echo "[OK] Scripts installed: .skill-trader/backtest/scripts/"
 
-    curl -fsSL "$BASE_URL/config/backtest.template.ini" -o "config/backtest.template.ini"
-    echo "[OK] Config template installed: config/backtest.template.ini"
+    curl -fsSL "$BASE_URL/.skill-trader/backtest/config/backtest.template.ini" -o ".skill-trader/backtest/config/backtest.template.ini"
+    echo "[OK] Config template installed: .skill-trader/backtest/config/backtest.template.ini"
 
     curl -fsSL "$BASE_URL/code/experts/SimpleMA_EA.mq5" -o "code/experts/SimpleMA_EA.mq5"
     echo "[OK] Example EA installed: code/experts/SimpleMA_EA.mq5"
 
-    mkdir -p results/logs
+    mkdir -p .skill-trader/backtest/results/logs
 fi
 
 echo ""
@@ -82,6 +82,6 @@ echo "Trigger: ask Claude to 'backtest EA' or 'compile EA'"
 if [ "$INSTALL_MODE" = "full" ]; then
     echo ""
     echo "Quick start:"
-    echo "  ./scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual"
+    echo "  ./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual"
 fi
 echo ""

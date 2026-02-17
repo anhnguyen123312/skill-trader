@@ -37,28 +37,28 @@ echo ""
 
 # --- 1. Directory structure ---
 echo "[1/6] Creating directory structure..."
-mkdir -p code/experts code/include config scripts results/logs .claude/skills/mt5-backtest
-echo "      code/experts/    - EA source files (.mq5)"
-echo "      code/include/    - Shared MQL5 includes"
-echo "      config/          - Config templates & credentials"
-echo "      scripts/         - Pipeline scripts"
-echo "      results/         - Backtest CSV outputs"
+mkdir -p code/experts code/include .skill-trader/backtest/scripts .skill-trader/backtest/config .skill-trader/backtest/results/logs .claude/skills/mt5-backtest
+echo "      code/experts/                      - EA source files (.mq5)"
+echo "      code/include/                      - Shared MQL5 includes"
+echo "      .skill-trader/backtest/scripts/    - Pipeline scripts"
+echo "      .skill-trader/backtest/config/     - Config templates & credentials"
+echo "      .skill-trader/backtest/results/    - Backtest CSV outputs"
 
 # --- 2. Download scripts ---
 echo ""
 echo "[2/6] Downloading pipeline scripts..."
 SCRIPTS="login.sh compile.sh backtest.sh monitor.sh collect.sh run.sh"
 for script in $SCRIPTS; do
-    curl -fsSL "$BASE_URL/scripts/$script" -o "scripts/$script"
-    chmod +x "scripts/$script"
-    echo "      [OK] scripts/$script"
+    curl -fsSL "$BASE_URL/.skill-trader/backtest/scripts/$script" -o ".skill-trader/backtest/scripts/$script"
+    chmod +x ".skill-trader/backtest/scripts/$script"
+    echo "      [OK] .skill-trader/backtest/scripts/$script"
 done
 
 # --- 3. Download config ---
 echo ""
 echo "[3/6] Downloading config template..."
-curl -fsSL "$BASE_URL/config/backtest.template.ini" -o "config/backtest.template.ini"
-echo "      [OK] config/backtest.template.ini"
+curl -fsSL "$BASE_URL/.skill-trader/backtest/config/backtest.template.ini" -o ".skill-trader/backtest/config/backtest.template.ini"
+echo "      [OK] .skill-trader/backtest/config/backtest.template.ini"
 
 # --- 4. Download example EA ---
 echo ""
@@ -78,15 +78,15 @@ echo "[6/6] Creating .gitignore..."
 if [ ! -f .gitignore ]; then
     cat > .gitignore <<'GITIGNORE'
 # Results (generated, large CSVs)
-results/*.csv
-results/logs/
+.skill-trader/backtest/results/*.csv
+.skill-trader/backtest/results/logs/
 
 # MT5 generated configs
-config/last_backtest.ini
+.skill-trader/backtest/config/last_backtest.ini
 
 # Credentials (NEVER commit these)
-config/credentials.env
-config/mt5-credentials/
+.skill-trader/backtest/config/credentials.env
+.skill-trader/backtest/config/mt5-credentials/
 
 # macOS
 .DS_Store
@@ -120,16 +120,16 @@ echo ""
 echo "Next steps:"
 echo ""
 echo "  1. Login to your broker:"
-echo "     ./scripts/login.sh"
+echo "     ./.skill-trader/backtest/scripts/login.sh"
 echo ""
 echo "  2. Place your EA source files in code/experts/"
 echo "     (SimpleMA_EA.mq5 included as example)"
 echo ""
 echo "  3. Run a backtest:"
-echo "     ./scripts/backtest.sh"
+echo "     ./.skill-trader/backtest/scripts/backtest.sh"
 echo ""
 echo "  4. Or run the full pipeline:"
-echo "     ./scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual"
+echo "     ./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual"
 echo ""
 echo "  5. Use Claude Code: ask 'backtest EA' or 'compile EA'"
 echo "     (skill auto-discovered from .claude/skills/)"

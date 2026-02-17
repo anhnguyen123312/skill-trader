@@ -1,13 +1,13 @@
 # Results (generated, large CSVs)
-results/*.csv
-results/logs/
+.skill-trader/backtest/results/*.csv
+.skill-trader/backtest/results/logs/
 
 # MT5 generated configs
-config/last_backtest.ini
+.skill-trader/backtest/config/last_backtest.ini
 
 # Credentials (NEVER commit these)
-config/credentials.env
-config/mt5-credentials/
+.skill-trader/backtest/config/credentials.env
+.skill-trader/backtest/config/mt5-credentials/
 
 # OMC state
 .omc/
