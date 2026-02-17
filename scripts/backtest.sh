@@ -1,49 +1,24 @@
 #!/bin/bash
 # Run backtest via MT5
-# Usage: ./scripts/backtest.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM_DATE] [TO_DATE] [--no-visual]
-# Example: ./scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31
+# Usage: ./scripts/backtest.sh                                    # Interactive (prompts all params)
+#        ./scripts/backtest.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [--no-visual]
 #
-# Period values: M1=1, M5=5, M15=15, M30=30, H1=16385, H4=16388, D1=16408
-# Default: M15, XAUUSD, 2024.01.01-2024.12.31, Visual=ON
-#
-# Credentials (in priority order):
-#   1. Environment variables: MT5_LOGIN, MT5_PASSWORD, MT5_SERVER
-#   2. Credentials file: config/credentials.env
-#   3. Defaults: 128364028 / (empty) / Exness-MT5Real7
+# Period values: M1, M5, M15, M30, H1, H4, D1
+# Credentials: config/credentials.env or ENV vars or cached common.ini
 
 set -e
 
-# --- Validate input ---
-if [ -z "$1" ]; then
-    echo "ERROR: EA name required"
-    echo "Usage: ./scripts/backtest.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [--no-visual]"
-    exit 1
-fi
-
-EA_NAME="$1"
-SYMBOL="${2:-XAUUSD}"
-PERIOD_NAME="${3:-M15}"
-FROM_DATE="${4:-2024.01.01}"
-TO_DATE="${5:-2024.12.31}"
-
-# Check for --no-visual flag
-VISUAL=1
-for arg in "$@"; do
-    if [ "$arg" = "--no-visual" ]; then
-        VISUAL=0
-    fi
-done
-
-# --- Load credentials ---
 PROJECT_ROOT="/Volumes/Data/Git/EA-OAT-v3"
+WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
+MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
+WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"
+TEMPLATE="$PROJECT_ROOT/config/backtest.template.ini"
 CRED_FILE="$PROJECT_ROOT/config/credentials.env"
 
-# Source credentials file if exists (sets MT5_LOGIN, MT5_PASSWORD, MT5_SERVER)
+# --- Load credentials ---
 if [ -f "$CRED_FILE" ]; then
     source "$CRED_FILE"
 fi
-
-# Apply with defaults
 MT5_LOGIN="${MT5_LOGIN:-128364028}"
 MT5_PASSWORD="${MT5_PASSWORD:-}"
 MT5_SERVER="${MT5_SERVER:-Exness-MT5Real7}"
@@ -52,23 +27,101 @@ MT5_LEVERAGE="${MT5_LEVERAGE:-1:1000}"
 MT5_DELAY="${MT5_DELAY:-100}"
 
 # --- Map period name to MT5 value ---
-case "$PERIOD_NAME" in
-    M1)  PERIOD=1 ;;
-    M5)  PERIOD=5 ;;
-    M15) PERIOD=15 ;;
-    M30) PERIOD=30 ;;
-    H1)  PERIOD=16385 ;;
-    H4)  PERIOD=16388 ;;
-    D1)  PERIOD=16408 ;;
-    *)   PERIOD="$PERIOD_NAME" ;;
-esac
+map_period() {
+    case "$1" in
+        M1)  echo 1 ;;
+        M5)  echo 5 ;;
+        M15) echo 15 ;;
+        M30) echo 30 ;;
+        H1)  echo 16385 ;;
+        H4)  echo 16388 ;;
+        D1)  echo 16408 ;;
+        *)   echo "$1" ;;
+    esac
+}
 
-WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
-MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
-WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"
-TEMPLATE="$PROJECT_ROOT/config/backtest.template.ini"
+# --- Interactive mode: prompt for all params ---
+if [ -z "$1" ] || [ "$1" = "--interactive" ] || [ "$1" = "-i" ]; then
+    echo "=== EA-OAT Backtest Setup ==="
+    echo ""
 
-echo "=== skill-trader Backtest Launcher ==="
+    # 1. EA Name - list available .ex5 files
+    echo "Available EAs:"
+    EA_LIST=()
+    while IFS= read -r f; do
+        ea=$(basename "$f" .ex5)
+        EA_LIST+=("$ea")
+    done < <(find "$MT5_BASE/MQL5/Experts" -maxdepth 1 -name "*.ex5" 2>/dev/null | sort)
+
+    if [ ${#EA_LIST[@]} -eq 0 ]; then
+        echo "  (none found - compile first with ./scripts/compile.sh)"
+        printf "EA Name: "
+        read -r EA_NAME
+    else
+        for i in "${!EA_LIST[@]}"; do
+            echo "  $((i+1)). ${EA_LIST[$i]}"
+        done
+        printf "EA [1]: "
+        read -r ea_input
+        if [ -z "$ea_input" ]; then
+            EA_NAME="${EA_LIST[0]}"
+        elif [[ "$ea_input" =~ ^[0-9]+$ ]] && [ "$ea_input" -ge 1 ] && [ "$ea_input" -le ${#EA_LIST[@]} ]; then
+            EA_NAME="${EA_LIST[$((ea_input-1))]}"
+        else
+            EA_NAME="$ea_input"
+        fi
+    fi
+
+    # 2. Symbol
+    printf "Symbol [XAUUSD]: "
+    read -r SYMBOL
+    SYMBOL="${SYMBOL:-XAUUSD}"
+
+    # 3. Period
+    echo "Periods: M1, M5, M15, M30, H1, H4, D1"
+    printf "Period [M15]: "
+    read -r PERIOD_NAME
+    PERIOD_NAME="${PERIOD_NAME:-M15}"
+
+    # 4. Date range
+    printf "From [2024.01.01]: "
+    read -r FROM_DATE
+    FROM_DATE="${FROM_DATE:-2024.01.01}"
+
+    printf "To [2024.12.31]: "
+    read -r TO_DATE
+    TO_DATE="${TO_DATE:-2024.12.31}"
+
+    # 5. Visual mode
+    printf "Visual? (y/n) [n]: "
+    read -r vis_input
+    if [ "$vis_input" = "y" ] || [ "$vis_input" = "Y" ]; then
+        VISUAL=1
+    else
+        VISUAL=0
+    fi
+
+    PERIOD=$(map_period "$PERIOD_NAME")
+    echo ""
+else
+    # --- CLI mode: positional args ---
+    EA_NAME="$1"
+    SYMBOL="${2:-XAUUSD}"
+    PERIOD_NAME="${3:-M15}"
+    FROM_DATE="${4:-2024.01.01}"
+    TO_DATE="${5:-2024.12.31}"
+
+    VISUAL=1
+    for arg in "$@"; do
+        if [ "$arg" = "--no-visual" ]; then
+            VISUAL=0
+        fi
+    done
+
+    PERIOD=$(map_period "$PERIOD_NAME")
+fi
+
+echo "=== EA-OAT Backtest Launcher ==="
 echo "EA:       $EA_NAME"
 echo "Symbol:   $SYMBOL"
 echo "Period:   $PERIOD_NAME ($PERIOD)"
@@ -105,19 +158,31 @@ CONFIG_DIR="$WINEPREFIX/drive_c"
 CONFIG_FILE="$CONFIG_DIR/autobacktest.ini"
 
 # Generate config with Windows CRLF line endings (required by MT5)
-sed -e "s/__EA_NAME__/$EA_NAME/g" \
-    -e "s/__SYMBOL__/$SYMBOL/" \
-    -e "s/__PERIOD__/$PERIOD/" \
-    -e "s/__FROM_DATE__/$FROM_DATE/" \
-    -e "s/__TO_DATE__/$TO_DATE/" \
-    -e "s/__VISUAL__/$VISUAL/" \
-    -e "s/__LOGIN__/$MT5_LOGIN/g" \
-    -e "s/__PASSWORD__/$MT5_PASSWORD/" \
-    -e "s/__SERVER__/$MT5_SERVER/g" \
-    -e "s/__DEPOSIT__/$MT5_DEPOSIT/" \
-    -e "s/__LEVERAGE__/$MT5_LEVERAGE/" \
-    -e "s/__DELAY__/$MT5_DELAY/" \
-    "$TEMPLATE" | sed 's/$/\r/' > "$CONFIG_FILE"
+# [Common] MUST always include Login + Server (tells MT5 which cached account to use).
+# Password is ONLY included when explicitly provided (empty Password= corrupts accounts.dat).
+COMMON_SECTION="[Common]\r\nLogin=${MT5_LOGIN}\r\nServer=${MT5_SERVER}\r\nKeepPrivate=0\r\nNewsEnable=0\r\n"
+if [ -n "$MT5_PASSWORD" ]; then
+    COMMON_SECTION="[Common]\r\nLogin=${MT5_LOGIN}\r\nPassword=${MT5_PASSWORD}\r\nServer=${MT5_SERVER}\r\nKeepPrivate=0\r\nNewsEnable=0\r\n"
+fi
+
+# Build config: optional [Common] + [Tester] from template
+{
+    if [ -n "$COMMON_SECTION" ]; then
+        printf "$COMMON_SECTION"
+    fi
+    sed -e "s/__EA_NAME__/$EA_NAME/g" \
+        -e "s/__SYMBOL__/$SYMBOL/" \
+        -e "s/__PERIOD__/$PERIOD/" \
+        -e "s/__FROM_DATE__/$FROM_DATE/" \
+        -e "s/__TO_DATE__/$TO_DATE/" \
+        -e "s/__VISUAL__/$VISUAL/" \
+        -e "s/__LOGIN__/$MT5_LOGIN/g" \
+        -e "s/__SERVER__/$MT5_SERVER/g" \
+        -e "s/__DEPOSIT__/$MT5_DEPOSIT/" \
+        -e "s/__LEVERAGE__/$MT5_LEVERAGE/" \
+        -e "s/__DELAY__/$MT5_DELAY/" \
+        "$TEMPLATE"
+} | sed 's/$/\r/' > "$CONFIG_FILE"
 
 echo "[2/4] Config generated (CRLF)"
 
