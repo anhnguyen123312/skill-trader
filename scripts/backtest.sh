@@ -8,7 +8,8 @@
 
 set -e
 
-PROJECT_ROOT="/Volumes/Data/Git/EA-OAT-v3"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 WINEPREFIX="$HOME/Library/Application Support/net.metaquotes.wine.metatrader5"
 MT5_BASE="$WINEPREFIX/drive_c/Program Files/MetaTrader 5"
 WINE="/Applications/MetaTrader 5.app/Contents/SharedSupport/wine/bin/wine64"

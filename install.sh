@@ -59,7 +59,7 @@ if [ "$INSTALL_MODE" = "full" ]; then
 
     mkdir -p scripts config code/experts
 
-    for script in compile.sh backtest.sh monitor.sh collect.sh run.sh; do
+    for script in login.sh compile.sh backtest.sh monitor.sh collect.sh run.sh; do
         curl -fsSL "$BASE_URL/scripts/$script" -o "scripts/$script"
         chmod +x "scripts/$script"
     done

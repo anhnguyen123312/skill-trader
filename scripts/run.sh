@@ -21,7 +21,8 @@ if [ -z "$1" ]; then
     echo "  TO         - End date YYYY.MM.DD (default: 2025.12.31)"
     echo ""
     echo "Available EAs:"
-    ls -1 /Volumes/Data/Git/EA-OAT-v3/code/experts/*.mq5 2>/dev/null | xargs -I{} basename {} .mq5 | sed 's/^/  - /'
+    SELF_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+    ls -1 "$SELF_DIR/code/experts"/*.mq5 2>/dev/null | xargs -I{} basename {} .mq5 | sed 's/^/  - /'
     echo ""
     echo "Example:"
     echo "  ./scripts/run.sh SimpleMA_EA XAUUSD H1 2024.01.01 2025.12.31"
@@ -33,7 +34,7 @@ SYMBOL="${2:-XAUUSD}"
 PERIOD="${3:-M15}"
 FROM_DATE="${4:-2024.01.01}"
 TO_DATE="${5:-2024.12.31}"
-SCRIPT_DIR="/Volumes/Data/Git/EA-OAT-v3/scripts"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Pass through --no-visual flag
 EXTRA_ARGS=""

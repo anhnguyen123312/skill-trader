@@ -13,7 +13,8 @@ if [ -z "$1" ]; then
 fi
 
 EA_NAME="$1"
-PROJECT_ROOT="/Volumes/Data/Git/EA-OAT-v3"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 EA_SOURCE="$PROJECT_ROOT/code/experts/${EA_NAME}.mq5"
 
 # --- Wine/MT5 paths ---
