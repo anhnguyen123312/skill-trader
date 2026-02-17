@@ -162,9 +162,9 @@ CONFIG_FILE="$CONFIG_DIR/autobacktest.ini"
 # Generate config with Windows CRLF line endings (required by MT5)
 # [Common] MUST always include Login + Server (tells MT5 which cached account to use).
 # Password is ONLY included when explicitly provided (empty Password= corrupts accounts.dat).
-COMMON_SECTION="[Common]\r\nLogin=${MT5_LOGIN}\r\nServer=${MT5_SERVER}\r\nKeepPrivate=0\r\nNewsEnable=0\r\n"
+COMMON_SECTION="[Common]\nLogin=${MT5_LOGIN}\nServer=${MT5_SERVER}\nKeepPrivate=0\nNewsEnable=0\n"
 if [ -n "$MT5_PASSWORD" ]; then
-    COMMON_SECTION="[Common]\r\nLogin=${MT5_LOGIN}\r\nPassword=${MT5_PASSWORD}\r\nServer=${MT5_SERVER}\r\nKeepPrivate=0\r\nNewsEnable=0\r\n"
+    COMMON_SECTION="[Common]\nLogin=${MT5_LOGIN}\nPassword=${MT5_PASSWORD}\nServer=${MT5_SERVER}\nKeepPrivate=0\nNewsEnable=0\n"
 fi
 
 # Build config: optional [Common] + [Tester] from template

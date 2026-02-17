@@ -1,6 +1,5 @@
-# Results (generated, large CSVs)
-.skill-trader/backtest/results/*.csv
-.skill-trader/backtest/results/logs/
+# Results (generated backtest output)
+.skill-trader/backtest/results/
 
 # MT5 generated configs
 .skill-trader/backtest/config/last_backtest.ini
