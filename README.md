@@ -6,36 +6,37 @@ Claude Code plugin for automated MetaTrader 5 Expert Advisor build & backtest on
 
 ## Installation
 
-### Method 1: Plugin Marketplace (Recommended)
-
-```
-/plugin marketplace add anhnguyen123312/skill-trader
-/plugin install skill-trader@skill-trader
-```
-
-### Method 2: One-Liner (Skill Only)
+### Method 1: Setup New EA Project (Recommended)
 
 ```bash
-# Install to current project
+# Create a new EA project with full pipeline
+curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/setup.sh | bash -s -- my-ea-project
+cd my-ea-project
+
+# Or setup in current directory
+curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/setup.sh | bash
+```
+
+This creates the full project structure with scripts, config, example EA, and Claude Code skill.
+
+### Method 2: Add to Existing Project
+
+```bash
+# Full pipeline (scripts + config + skill + example EA)
+curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/install.sh | bash -s -- --full
+
+# Skill only (Claude Code integration)
 curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/install.sh | bash
 
-# Install globally (all projects)
+# Skill only (global - all projects)
 curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/install.sh | bash -s -- --global
-
-# Install full pipeline (skill + scripts + config + example EA)
-curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/install.sh | bash -s -- --full
 ```
 
-### Method 3: Manual
+### Method 3: Clone
 
 ```bash
-# Skill only
-mkdir -p .claude/skills/mt5-backtest
-curl -fsSL https://raw.githubusercontent.com/anhnguyen123312/skill-trader/main/skills/mt5-backtest/SKILL.md \
-  -o .claude/skills/mt5-backtest/SKILL.md
-
-# Or clone everything
-git clone https://github.com/anhnguyen123312/skill-trader.git
+git clone https://github.com/anhnguyen123312/skill-trader.git my-ea-project
+cd my-ea-project
 ```
 
 ## Prerequisites
@@ -182,6 +183,104 @@ Template: `config/backtest.template.ini` (only `[Tester]` section - `[Common]` i
 | Delay | 100 | Slippage emulation (ms) |
 
 See `skills/mt5-backtest/SKILL.md` for full documentation, troubleshooting, and known issues.
+
+## Test Flows
+
+Verified test scenarios for the plugin pipeline.
+
+### Flow 1: Fresh Install + First Login
+
+```bash
+# 1. Setup new project
+curl -fsSL .../setup.sh | bash -s -- test-project && cd test-project
+
+# 2. First login (no cached credentials)
+./scripts/login.sh
+# Expected: prompts Login/Server/Password, authenticates, saves credentials.env
+# Verify: ./scripts/login.sh --status -> "READY"
+
+# 3. Backup credentials
+./scripts/login.sh --backup
+# Expected: accounts.dat (~8KB), servers.dat (~900KB), common.ini saved
+```
+
+### Flow 2: Backtest (Interactive)
+
+```bash
+# 1. Run backtest with prompts
+./scripts/backtest.sh
+# Expected: lists available EAs, prompts all params, launches MT5
+# Verify: NO login popup, MT5 runs backtest automatically
+
+# 2. Monitor
+./scripts/monitor.sh
+# Expected: "BACKTEST COMPLETE", CSV found
+
+# 3. Collect results
+./scripts/collect.sh SimpleMA_EA XAUUSD M15
+# Expected: CSV saved to results/, summary displayed
+```
+
+### Flow 3: Backtest (CLI)
+
+```bash
+./scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+# Expected: compile -> backtest -> monitor -> collect, all automatic
+# Verify: results/<date>_SimpleMA_EA_XAUUSD_M15.csv exists
+```
+
+### Flow 4: Credential Recovery
+
+```bash
+# 1. Delete all credentials (simulate corruption)
+rm -f "$MT5_CONFIG/accounts.dat" "$MT5_CONFIG/servers.dat" "$MT5_CONFIG/common.ini"
+rm -f config/credentials.env
+
+# 2. Verify NOT READY
+./scripts/login.sh --status
+# Expected: "NOT READY"
+
+# 3. Restore from backup
+./scripts/login.sh --restore
+# Expected: all 3 files restored
+
+# 4. Re-login (to regenerate credentials.env)
+./scripts/login.sh
+# Expected: prompts password, authenticates, saves credentials.env
+
+# 5. Backtest should work
+./scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+# Expected: completes without login popup
+```
+
+### Flow 5: Login Popup Bug (Regression Test)
+
+```bash
+# This flow verifies the login popup fix stays working
+
+# 1. Delete credentials.env (simulates missing password)
+rm -f config/credentials.env
+
+# 2. Run backtest
+./scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+
+# 3. EXPECTED BUG: MT5 shows login popup (Password missing from [Common])
+# FIX: re-run ./scripts/login.sh to regenerate credentials.env
+# THEN: backtest works without popup
+```
+
+### Flow 6: Different Timeframes
+
+```bash
+# M15 (fast, ~5-10s)
+./scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+
+# H1 (medium, ~10-30s)
+./scripts/backtest.sh SimpleMA_EA XAUUSD H1 2024.01.01 2024.12.31 --no-visual
+
+# D1 (fast, ~5s)
+./scripts/backtest.sh SimpleMA_EA XAUUSD D1 2023.01.01 2025.12.31 --no-visual
+```
 
 ## License
 

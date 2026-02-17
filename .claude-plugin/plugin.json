@@ -1,6 +1,6 @@
 {
   "name": "skill-trader",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "MT5 Expert Advisor build & backtest pipeline for macOS. Compile MQ5, backtest with real tick data, collect trade-by-trade results.",
   "author": {
     "name": "anhnguyen123312"
