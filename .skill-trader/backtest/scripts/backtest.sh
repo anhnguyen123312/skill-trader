@@ -190,9 +190,9 @@ fi
         printf "\n[TesterInputs]\n"
         grep -E '^\s*input\s+' "$MQ5_SRC" | while IFS= read -r line; do
             # Extract variable name and default value from: input <type> <name> = <value>;
-            varname=$(echo "$line" | sed -E 's/^\s*input\s+\S+\s+(\w+)\s*=.*/\1/')
+            varname=$(echo "$line" | sed -E 's/^[[:space:]]*input[[:space:]]+[^=]+[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=.*/\1/')
             # Extract value: everything between = and ; (trim whitespace)
-            val=$(echo "$line" | sed -E 's/^[^=]+=\s*([^;]+);.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            val=$(echo "$line" | sed -E 's/^[^=]+=([^;]+);.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
             if [ -n "$varname" ] && [ -n "$val" ]; then
                 printf "%s=%s\n" "$varname" "$val"
             fi
