@@ -360,6 +360,446 @@ StopLoss=30                       <- Ensures backtest uses EA's defaults
 5. Display summary: Win Rate, Trades, Profit, Drawdown, Profit Factor, Sharpe
 6. Display trade-by-trade log: ticket, type, time, price, P/L, reason
 
+## Results Directory Structure
+
+Every backtest produces a result folder organized by date, EA, symbol, and period:
+
+```
+.skill-trader/backtest/results/
+  {DATE}_{EA_NAME}_{SYMBOL}_{PERIOD}/
+    {EA_NAME}_report.md              # Parsed Markdown report (from HTML)
+    {EA_NAME}_Report.png             # Balance/equity curve chart
+    {EA_NAME}_Report-hst.png         # 6 distribution histograms
+    {EA_NAME}_Report-holding.png     # Holding time scatter plot
+    {EA_NAME}_Report-mfemae.png      # MFE/MAE scatter plots
+  {DATE}_{EA_NAME}_{SYMBOL}_{PERIOD}.csv  # OnTester CSV (if EA exports it)
+  logs/                              # Tester + Agent logs (UTF-16LE)
+```
+
+**Naming convention:** `{DATE}` = `YYYY-MM-DD`, e.g. `2026-02-21_SimpleMA_EA_XAUUSD_M15/`
+
+### Versioned Results Tracking
+
+When using `--version` flag, results are linked to git tags:
+
+```
+git tag -l '<EA_NAME>-v*'           # List all versions
+git log --oneline <EA_NAME>-v1.2    # See what changed in v1.2
+```
+
+To compare results across versions:
+1. Each version's backtest config is saved as `config/backtest_{EA_NAME}_v{X.Y}.ini`
+2. Results folders are timestamped, so multiple runs are preserved
+3. Use git tags to correlate code changes with performance changes
+
+## Report Analysis Guide
+
+### Data Sources (Priority Order)
+
+`collect.sh` tries two data sources:
+
+1. **HTML Report** (primary) - MT5 generates `{EA_NAME}_Report.htm` automatically for ALL EAs. This is parsed by `parse_report.py` into a comprehensive Markdown file. **Works for every EA without any code changes.**
+
+2. **OnTester CSV** (secondary) - Only available if the EA implements `OnTester()` with `FILE_COMMON` CSV export. Provides custom metrics the EA explicitly calculates.
+
+### Markdown Report Sections
+
+The parsed report (`{EA_NAME}_report.md`) contains these sections in order:
+
+| Section | Content | Key Metrics |
+|---------|---------|-------------|
+| **Settings** | EA name, symbol, period, inputs, deposit, leverage, broker | Test configuration reference |
+| **Performance** | Net profit, gross profit/loss, profit factor, Sharpe, recovery factor | Overall strategy quality |
+| **Drawdown** | Balance/equity DD (absolute, maximal, relative) | Risk assessment |
+| **Trades** | Total trades, win rate, long/short breakdown, consecutive wins/losses | Trade statistics |
+| **Correlation & Holding** | MFE/MAE correlation, min/max/avg holding time | Trade efficiency |
+| **Deals** | Every deal: ticket, type, direction, volume, price, commission, swap, profit | Full trade log |
+| **Orders** | Every order: ticket, time, type, volume, price, SL, TP, state | Order execution log |
+
+### Key Metrics Interpretation
+
+| Metric | Description | Bad | Marginal | Good | Excellent |
+|--------|-------------|-----|----------|------|-----------|
+| **Profit Factor** | Gross Profit / Gross Loss | < 0.9 | 0.9-1.2 | 1.2-1.5 | > 1.5 |
+| **Win Rate** | Winning trades / Total trades | < 40% | 40-50% | 50-60% | > 60% |
+| **Sharpe Ratio** | Risk-adjusted return | < 0 | 0-0.5 | 0.5-1.0 | > 1.0 |
+| **Max DD %** | Largest peak-to-trough drop | > 50% | 30-50% | 10-30% | < 10% |
+| **Recovery Factor** | Net Profit / Max DD | < 1 | 1-2 | 2-5 | > 5 |
+| **Expected Payoff** | Average profit per trade | < 0 | 0-1 | 1-5 | > 5 |
+| **R/D Ratio** | Annual Return / Max DD | < 1 | 1-2 | 2-3 | > 3 |
+
+### Direction Analysis (LONG vs SHORT)
+
+The report includes `Short Trades (won %)` and `Long Trades (won %)`. Agent MUST analyze:
+
+1. **Which direction is more profitable?** Compare win rates and net P/L
+2. **Is the strategy directionally biased?** Large imbalance suggests strategy only works one way
+3. **Should one direction be disabled?** If one direction consistently loses, recommend disabling it
+
+### Reading the Deals Table
+
+Each deal row contains:
+
+| Column | Meaning | What to Look For |
+|--------|---------|-----------------|
+| Time | Deal execution timestamp | Cluster of losses = bad period |
+| Type | buy/sell | Direction balance |
+| Direction | in/out/inout | Position lifecycle |
+| Volume | Lot size | Position sizing consistency |
+| Price | Execution price | Slippage check |
+| Commission | Broker fee | Cost impact on small trades |
+| Swap | Overnight fee | Impact on long-held trades |
+| Profit | Trade P/L | Win/loss distribution |
+| Comment | SL/TP/manual close | How trades are exiting |
+
+**Deal Comment Analysis:**
+- `[sl]` = Stopped out (hit stop loss) - Too many = SL too tight
+- `[tp]` = Take profit hit - Good, strategy hitting targets
+- Empty = Manual or signal close - Check if timing is good
+- `[so]` = Stop out (margin call) - CRITICAL: insufficient margin
+
+## Chart Image Analysis (Agent Instructions)
+
+MT5 HTML reports generate 4 PNG chart images. Agent MUST read these images using the Read tool and analyze them when presenting results to the user.
+
+### Chart 1: Balance Curve (`{EA}_Report.png`)
+
+**What it shows:** Line chart of account balance over the backtest period.
+- **X-axis:** Trade number (sequential, left to right)
+- **Y-axis:** Account balance in USD
+- **Blue line:** Balance after each closed trade
+
+**How to interpret:**
+- **Smooth upward slope** = Consistent profitability (ideal)
+- **Staircase pattern (up)** = Profitable with distinct winning periods
+- **Steep drops** = Large drawdown events - note where they occur
+- **Flat sections** = No trading activity or breakeven period
+- **Downward slope** = Strategy is losing money
+- **V-shaped dips** = Drawdowns followed by recovery (check recovery speed)
+
+**What to report:** "Balance grew from $X to $Y with [smooth/choppy] progression. Notable drawdown at trade #N (-X%). Recovery took N trades."
+
+### Chart 2: Distribution Histograms (`{EA}_Report-hst.png`)
+
+**What it shows:** 6 histograms in a 2x3 grid:
+
+```
+Row 1: ENTRY DISTRIBUTION (count of trades opened)
+  [By Hour 0-23]  [By Weekday Mon-Fri]  [By Month Jan-Dec]
+
+Row 2: PROFIT DISTRIBUTION (total profit/loss)
+  [By Hour 0-23]  [By Weekday Mon-Fri]  [By Month Jan-Dec]
+```
+
+**How to interpret:**
+
+| Chart | Green bars | Red bars | Analysis |
+|-------|-----------|----------|----------|
+| Entries by Hour | Trades opened at that hour | N/A (all same color) | Which hours have most signals |
+| Entries by Weekday | Trades on that day | N/A | Which days are most active |
+| Entries by Month | Trades in that month | N/A | Seasonal trading activity |
+| Profit by Hour | Profitable hours | Losing hours | Best/worst trading hours |
+| Profit by Weekday | Profitable days | Losing days | Best/worst trading days |
+| Profit by Month | Profitable months | Losing months | Seasonal profitability |
+
+**What to report:**
+- "Most trades opened during hours X-Y (London/NY session)"
+- "Tuesday and Thursday most active; Friday has fewest trades"
+- "March and October most profitable; June and August losing months"
+- "Recommend adding time filter: trade only hours X-Y"
+- "Consider seasonal filter: skip months X, Y, Z"
+
+### Chart 3: Holding Time Scatter (`{EA}_Report-holding.png`)
+
+**What it shows:** Scatter plot of each trade's profit vs. how long it was held.
+- **X-axis:** Holding time (in seconds, from 0 upward)
+- **Y-axis:** Profit/loss in USD (positive above zero, negative below)
+- **Each dot:** One closed trade
+
+**How to interpret:**
+- **Dots clustered at short holding times** = Scalping strategy
+- **Dots spread across wide time range** = Mixed holding strategy
+- **Profitable dots (above zero) at short holds** = Quick wins, good
+- **Losing dots at long holds** = Holding losers too long (bad money management)
+- **Clear time cluster where most profits occur** = Optimal holding period identified
+
+**What to report:** "Average holding time ~Xh. Most profits come from trades held X-Y hours. Trades held longer than Z hours tend to lose. Consider adding time-based exit at Z hours."
+
+### Chart 4: MFE/MAE Scatter (`{EA}_Report-mfemae.png`)
+
+**What it shows:** Two overlapping scatter plots measuring trade excursion:
+- **Blue dots (MFE):** Profit vs. Maximum Favorable Excursion (how far price moved IN your favor before close)
+- **Red dots (MAE):** Profit vs. Maximum Adverse Excursion (how far price moved AGAINST you before close)
+
+**X-axis:** Excursion amount (USD or pips)
+**Y-axis:** Final trade profit (USD)
+
+**How to interpret MFE (blue):**
+- **Dots along diagonal** = Trades captured most of the favorable move (good TP placement)
+- **Dots far below diagonal** = Trades gave back lots of unrealized profit (TP too far or no trailing stop)
+- **Large MFE with small/negative profit** = Letting winners turn into losers (CRITICAL issue)
+
+**How to interpret MAE (red):**
+- **Dots clustered near zero MAE** = Tight stops, quick exits on losers (good)
+- **Large MAE with negative profit** = Holding losers too long, SL too wide
+- **Large MAE with positive profit** = Trade went against before recovering (risky but profitable)
+
+**What to report:**
+- "MFE analysis: Trades capture X% of maximum favorable move on average. TP placement is [tight/loose]."
+- "MAE analysis: Average adverse excursion is $X. SL placement at $Y is [appropriate/too wide/too tight]."
+- "Recommendation: [Tighten TP to $X / Add trailing stop / Widen SL to $Y]"
+
+## Testing Hierarchy
+
+### Overview
+
+```
+Level 1: Quick Validation    -> Single month    (20-22 trading days)
+Level 2: Seasonal Check      -> Single quarter  (3 months)
+Level 3: Stability Test      -> Half year       (6 months)
+Level 4: Annual Performance  -> Full year       (12 months)
+Level 5: Robustness Test     -> Multi-year      (2-3+ years)
+Level 6: Capital Sensitivity -> Same period, different deposits
+```
+
+Agent SHOULD run Level 1 first for quick validation, then progressively run higher levels.
+
+### Level 1: Monthly Testing (Quick Validation)
+
+**Purpose:** Quick check if EA works in specific market conditions. ~5-10 second backtest.
+
+```bash
+# Test a single month
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.03.01 2024.03.31 --no-visual
+```
+
+**Monthly Results Template (agent should fill this):**
+
+| Month | Trades | Net Profit | Return % | Win Rate | PF | Max DD% | Sharpe |
+|-------|--------|------------|----------|----------|-----|---------|--------|
+| Jan 2024 | | | | | | | |
+| Feb 2024 | | | | | | | |
+| Mar 2024 | | | | | | | |
+| ... | | | | | | | |
+
+**What monthly tests reveal:**
+- Best/worst months → identify seasonal patterns
+- Months to skip (PF < 1.0 consistently)
+- Optimal trading months (PF > 1.5 consistently)
+
+### Level 2: Quarterly Testing (Seasonal Check)
+
+**Purpose:** Evaluate performance across market quarters with different characteristics.
+
+| Quarter | Months | Gold Market Character |
+|---------|--------|---------------------|
+| Q1 | Jan-Mar | High volatility, trends (New Year, Chinese NY) |
+| Q2 | Apr-Jun | Mixed, often choppy (Fed meetings) |
+| Q3 | Jul-Sep | Low volume, ranging (summer doldrums) |
+| Q4 | Oct-Dec | Strong trends, year-end rally |
+
+```bash
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.01.01 2024.03.31 --no-visual  # Q1
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.04.01 2024.06.30 --no-visual  # Q2
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.07.01 2024.09.30 --no-visual  # Q3
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.10.01 2024.12.31 --no-visual  # Q4
+```
+
+**Quarter Rating System:**
+
+| PF Range | Rating | Action |
+|----------|--------|--------|
+| > 2.0 | Excellent | Trade full size |
+| 1.5-2.0 | Good | Trade normal size |
+| 1.2-1.5 | Acceptable | Trade reduced size |
+| 1.0-1.2 | Marginal | Skip or minimal |
+| < 1.0 | Losing | DO NOT TRADE |
+
+### Level 3: Half-Year Testing
+
+```bash
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.01.01 2024.06.30 --no-visual  # H1
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.07.01 2024.12.31 --no-visual  # H2
+```
+
+### Level 4: Full Year Testing
+
+```bash
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2023.01.01 2023.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2025.01.01 2025.12.31 --no-visual
+```
+
+**Annual Quality Assessment:**
+
+| Return % | Quality | Description |
+|----------|---------|-------------|
+| > 100% | Excellent | Exceptional, compound aggressively |
+| 50-100% | Good | Solid, continue strategy |
+| 20-50% | Acceptable | Positive but conservative |
+| 0-20% | Marginal | Barely profitable |
+| < 0% | Poor | Losing, review strategy |
+
+### Level 5: Multi-Year Testing (Robustness)
+
+**RECOMMENDED:** Test across 2-3+ years covering different market conditions.
+
+```bash
+# Full multi-year validation
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> XAUUSD M15 2023.01.01 2025.12.31 --no-visual
+```
+
+| Year | Market Condition | Purpose |
+|------|------------------|---------|
+| 2023 | Rate hikes, volatility | Stress test |
+| 2024 | Gold bull market | Validate trending |
+| 2025 | Continued volatility | Recent validation |
+
+### Level 6: Balance Sensitivity Testing
+
+Test same period with different deposit amounts to find minimum viable capital:
+
+```bash
+# Modify deposit in backtest.template.ini or use different configs
+# Test: $100, $250, $500, $1000, $2500, $5000, $10000
+```
+
+## Extended Report Template
+
+When presenting backtest results to the user, agent MUST use this comprehensive format:
+
+```markdown
+# Backtest Report: <EA_NAME> v<VERSION>
+
+**Date:** <YYYY-MM-DD HH:MM>
+**Version:** <EA_NAME>-v<X.Y> (git tag)
+
+## Test Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Symbol | <SYMBOL> |
+| Period | <PERIOD_NAME> (<MT5_VALUE>) |
+| Date Range | <FROM> to <TO> |
+| Deposit | $<AMOUNT> |
+| Leverage | <LEVERAGE> |
+| Model | Every tick based on real ticks |
+
+## EA Input Parameters
+
+| Parameter | Value |
+|-----------|-------|
+| <param1> | <value1> |
+| <param2> | <value2> |
+| ... | ... |
+
+## Overall Performance
+
+| Metric | Value | Rating |
+|--------|-------|--------|
+| Net Profit | $<X> | |
+| Return % | <X>% | |
+| Profit Factor | <X.XX> | Good/Bad/Excellent |
+| Win Rate | <X>% | |
+| Max DD | <X>% | |
+| Sharpe Ratio | <X.XX> | |
+| Recovery Factor | <X.XX> | |
+| Total Trades | <N> | |
+| R/D Ratio | <X.XX> | |
+
+## Direction Analysis
+
+| Metric | LONG | SHORT |
+|--------|------|-------|
+| Trades | <N> | <N> |
+| Win Rate | <X>% | <X>% |
+| Net P/L | $<X> | $<X> |
+
+## Trade Statistics
+
+| Metric | Value |
+|--------|-------|
+| Largest Win | $<X> |
+| Largest Loss | $<X> |
+| Average Win | $<X> |
+| Average Loss | $<X> |
+| Max Consecutive Wins | <N> |
+| Max Consecutive Losses | <N> |
+| Avg Holding Time | <X>h <X>m |
+
+## Chart Analysis
+
+### Balance Curve
+<Describe the balance curve from {EA}_Report.png>
+
+### Time Distribution
+<Describe profitable hours/days/months from {EA}_Report-hst.png>
+
+### Holding Time Analysis
+<Describe optimal holding times from {EA}_Report-holding.png>
+
+### MFE/MAE Analysis
+<Describe TP/SL efficiency from {EA}_Report-mfemae.png>
+
+## Recommendations
+
+1. <Specific improvement based on data>
+2. <Specific improvement based on data>
+3. <Specific improvement based on data>
+
+## Conclusion
+
+<Final assessment: APPROVED / NEEDS WORK / REJECTED>
+<Summary of strengths and weaknesses>
+```
+
+### Agent Instructions for Report Generation
+
+1. **ALWAYS read the markdown report** at `results/{date}_{EA}_{SYMBOL}_{PERIOD}/{EA}_report.md`
+2. **ALWAYS read chart images** using Read tool - there are 4 PNGs to analyze
+3. **Extract metrics** from the markdown report tables
+4. **Analyze each chart** following the Chart Image Analysis section above
+5. **Fill the Extended Report Template** with actual data
+6. **Compare to previous versions** if git tags exist (use `git tag -l '<EA_NAME>-v*'`)
+7. **Never guess metrics** - always read from the actual report files
+
+### Market Condition Classification
+
+When analyzing monthly results, classify the market condition:
+
+| Condition | ATR | ADX | Price Behavior | EA Impact |
+|-----------|-----|-----|----------------|-----------|
+| Trending Up | Medium | > 25 | Higher highs/lows | Good for trend-followers |
+| Trending Down | Medium | > 25 | Lower highs/lows | Good for trend-followers |
+| Ranging | Low | < 20 | Oscillating in channel | Bad for trend-followers |
+| High Volatility | High | Variable | Large swings | Wider SL needed |
+| Choppy | Variable | < 15 | False breakouts | DO NOT TRADE |
+
+**From backtest results, infer market condition:**
+- High WR + High PF = Likely trending
+- Low WR + Low PF = Likely ranging/choppy
+- High trade count = Volatile (many signals)
+- Low trade count = Quiet or trending (few signals)
+
+## Strategy Analysis Template
+
+After comprehensive testing, agent SHOULD provide:
+
+### Advantages (what works)
+- Entry signal quality (evidence from WR and PF)
+- Risk management effectiveness (evidence from DD and Recovery Factor)
+- Best market conditions (evidence from monthly/quarterly data)
+
+### Disadvantages (what doesn't work)
+- Market conditions where strategy fails (evidence from losing months)
+- Technical limitations (lagging indicators, no news filter, etc.)
+- Capital requirements (minimum viable deposit from Level 6 testing)
+
+### Optimization Recommendations
+- Parameters to tune (based on MFE/MAE analysis)
+- Filters to add (based on hour/day/month distribution charts)
+- Risk adjustments (based on drawdown analysis)
+
 ## EA Requirements
 
 The EA MUST implement `OnTester()` with CSV export to Common/Files:
