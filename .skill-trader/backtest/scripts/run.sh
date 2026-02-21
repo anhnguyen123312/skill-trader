@@ -1,7 +1,7 @@
 #!/bin/bash
 # EA-OAT-v3 Full E2E Pipeline
-# Usage: ./scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM_DATE] [TO_DATE] [--no-visual]
-# Example: ./scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31
+# Usage: ./scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM_DATE] [TO_DATE] [--no-visual] [--version] [--message "msg"] [--major]
+# Example: ./scripts/run.sh MyEA XAUUSD M15 2024.01.01 2024.12.31 --no-visual --version
 
 set -e
 
@@ -15,7 +15,7 @@ if [ -z "$1" ]; then
     echo "  EA-OAT-v3 Build & Backtest Pipeline"
     echo "=============================================="
     echo ""
-    echo "Usage: ./scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO]"
+    echo "Usage: ./scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [OPTIONS]"
     echo ""
     echo "Arguments:"
     echo "  EA_NAME    - Name of EA in code/experts/ (without .mq5)"
@@ -24,11 +24,17 @@ if [ -z "$1" ]; then
     echo "  FROM       - Start date YYYY.MM.DD (default: 2024.01.01)"
     echo "  TO         - End date YYYY.MM.DD (default: 2025.12.31)"
     echo ""
+    echo "Options:"
+    echo "  --no-visual          Run headless (no GUI)"
+    echo "  --version            Auto-version after pipeline (git commit + tag)"
+    echo "  --message \"text\"     Commit message for versioning"
+    echo "  --major              Major version bump (v1.2 -> v2.0)"
+    echo ""
     echo "Available EAs:"
     ls -1 "$PROJECT_ROOT/code/experts"/*.mq5 2>/dev/null | xargs -I{} basename {} .mq5 | sed 's/^/  - /'
     echo ""
     echo "Example:"
-    echo "  ./scripts/run.sh SimpleMA_EA XAUUSD H1 2024.01.01 2025.12.31"
+    echo "  ./scripts/run.sh MyEA XAUUSD H1 2024.01.01 2025.12.31 --no-visual --version"
     exit 0
 fi
 
@@ -37,11 +43,29 @@ SYMBOL="${2:-XAUUSD}"
 PERIOD="${3:-M15}"
 FROM_DATE="${4:-2024.01.01}"
 TO_DATE="${5:-2024.12.31}"
-# Pass through --no-visual flag
+# Parse optional flags
 EXTRA_ARGS=""
+DO_VERSION=false
+VERSION_MSG=""
+VERSION_MAJOR=""
 for arg in "$@"; do
-    if [ "$arg" = "--no-visual" ]; then
-        EXTRA_ARGS="--no-visual"
+    case "$arg" in
+        --no-visual)
+            EXTRA_ARGS="--no-visual"
+            ;;
+        --version)
+            DO_VERSION=true
+            ;;
+        --major)
+            VERSION_MAJOR="--major"
+            ;;
+    esac
+done
+# Extract --message value (next arg after --message)
+ARGS=("$@")
+for i in "${!ARGS[@]}"; do
+    if [ "${ARGS[$i]}" = "--message" ] && [ $((i+1)) -lt ${#ARGS[@]} ]; then
+        VERSION_MSG="${ARGS[$((i+1))]}"
     fi
 done
 
@@ -78,6 +102,21 @@ echo ">>> PHASE 4/4: COLLECT RESULTS"
 echo "---"
 "$SCRIPT_DIR/collect.sh" "$EA_NAME" "$SYMBOL" "$PERIOD"
 echo ""
+
+# --- Phase 5 (Optional): Version ---
+if [ "$DO_VERSION" = true ]; then
+    echo ">>> PHASE 5/5: VERSION"
+    echo "---"
+    VERSION_ARGS="$EA_NAME"
+    if [ -n "$VERSION_MSG" ]; then
+        VERSION_ARGS="$VERSION_ARGS --message \"$VERSION_MSG\""
+    fi
+    if [ -n "$VERSION_MAJOR" ]; then
+        VERSION_ARGS="$VERSION_ARGS $VERSION_MAJOR"
+    fi
+    eval "$SCRIPT_DIR/version.sh" $VERSION_ARGS
+    echo ""
+fi
 
 echo "=============================================="
 echo "  PIPELINE COMPLETE"

@@ -12,6 +12,48 @@ description: Use when building, backtesting, or analyzing MT5 Expert Advisors on
 - User asks to analyze backtest results or trade logs
 - User wants to run E2E pipeline: compile -> backtest -> monitor -> collect
 
+## EA Discovery (for Agent)
+
+NEVER hardcode EA names. Always discover dynamically:
+1. Scan `code/experts/*.mq5` for available EA sources
+2. Use the filename (without .mq5) as EA_NAME
+3. When user says "build new EA" or "create bot":
+   - Create .mq5 in code/experts/ with descriptive name
+   - Use that name for compile/backtest/version commands
+4. When user says "backtest" without specifying which EA:
+   - List available EAs from `code/experts/*.mq5`
+   - Ask user to pick, or use the most recently modified
+
+## Versioning Workflow
+
+After any EA code change, ALWAYS version and tag:
+
+1. Edit/create EA source in `code/experts/<EA_NAME>.mq5`
+2. Run pipeline with versioning: `./scripts/run.sh <EA_NAME> ... --no-visual --version`
+3. Or manually: `./scripts/version.sh <EA_NAME> --message "description"`
+
+This auto-generates:
+- Versioned .ini config saved in `config/`
+- Git commit with all changes
+- Git tag: `<EA_NAME>-v<MAJOR>.<MINOR>`
+
+Agent MUST call `version.sh` after every code change to ensure traceability.
+
+Version commands:
+```bash
+# Auto-version (minor bump)
+./scripts/version.sh <EA_NAME> --message "Added trailing stop"
+
+# Major version bump
+./scripts/version.sh <EA_NAME> --major --message "Complete strategy rewrite"
+
+# View version history
+git tag -l '<EA_NAME>-v*'
+
+# View old version source
+git show <EA_NAME>-v1.0:code/experts/<EA_NAME>.mq5
+```
+
 ## Prerequisites
 
 Run this check before any operation. If anything fails, guide user to install.
@@ -86,7 +128,7 @@ login.sh                          backtest.sh
   Password=Ready@123                Password=Ready@123    <- from credentials.env
   Server=Exness-MT5Real7            Server=Exness-MT5Real7
 [Tester]                          [Tester]
-  ShutdownTerminal=1                Expert=SimpleMA_EA
+  ShutdownTerminal=1                Expert=<EA_NAME>
   (mini 1-day backtest)             ShutdownTerminal=1
    |                                  |
    v                                  v
@@ -147,7 +189,8 @@ EA-OAT-v3/
         backtest.sh                      # Step 2: Launch MT5 backtest (interactive or CLI)
         monitor.sh                       # Step 3: Wait for completion
         collect.sh                       # Step 4: Parse results
-        run.sh                           # E2E orchestrator (all 4 steps)
+        run.sh                           # E2E orchestrator (all steps)
+        version.sh                       # Auto-version: git commit + tag
       results/                           # CSV outputs
       results/logs/                      # MT5 tester logs
 ```
@@ -176,19 +219,23 @@ EA-OAT-v3/
 ### CLI Mode
 
 ```bash
-# E2E (Single Command)
-./.skill-trader/backtest/scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [--no-visual]
+# E2E (Single Command) - replace <EA_NAME> with actual EA from code/experts/
+./.skill-trader/backtest/scripts/run.sh <EA_NAME> [SYMBOL] [PERIOD] [FROM] [TO] [--no-visual] [--version] [--message "msg"] [--major]
 
-# Examples
-./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
-./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD H1 2023.01.01 2024.12.31 --no-visual
-./.skill-trader/backtest/scripts/run.sh MyEA EURUSD M5 2024.06.01 2024.12.31 --no-visual
+# Examples (auto-detect EA name from code/experts/*.mq5)
+./.skill-trader/backtest/scripts/run.sh MyEA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh MyEA XAUUSD H1 2023.01.01 2024.12.31 --no-visual --version
+./.skill-trader/backtest/scripts/run.sh MyEA EURUSD M5 2024.06.01 2024.12.31 --no-visual --version --message "Tuned SL/TP"
 
 # Individual Steps
-./.skill-trader/backtest/scripts/compile.sh SimpleMA_EA
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/compile.sh <EA_NAME>
+./.skill-trader/backtest/scripts/backtest.sh <EA_NAME> XAUUSD M15 2024.01.01 2024.12.31 --no-visual
 ./.skill-trader/backtest/scripts/monitor.sh 30
-./.skill-trader/backtest/scripts/collect.sh SimpleMA_EA XAUUSD M15
+./.skill-trader/backtest/scripts/collect.sh <EA_NAME> XAUUSD M15
+
+# Versioning (standalone)
+./.skill-trader/backtest/scripts/version.sh <EA_NAME> --message "description"
+./.skill-trader/backtest/scripts/version.sh <EA_NAME> --major --message "major rewrite"
 ```
 
 ### Period Mapping
@@ -242,8 +289,12 @@ Server=Exness-MT5Real7            <- Always included
 KeepPrivate=0
 NewsEnable=0
 [Tester]                          <- From template with sed replacements
-Expert=SimpleMA_EA
+Expert=<EA_NAME>
 Symbol=XAUUSD
+...
+[TesterInputs]                    <- Auto-extracted from .mq5 source
+LotSize=0.01                      <- Parsed from: input double LotSize = 0.01;
+StopLoss=30                       <- Ensures backtest uses EA's defaults
 ...
 ```
 
@@ -283,11 +334,12 @@ Symbol=XAUUSD
 3. Verify `.ex5` exists
 4. Generate `[Common]` section dynamically (Login + Server always, Password only if provided)
 5. Append `[Tester]` from template (sed placeholder replacement)
-6. Convert to Windows CRLF line endings: `sed 's/$/\r/'`
-7. Write config to `C:\autobacktest.ini` (Wine C: root - NO spaces!)
-8. Clean old CSV results
-9. Kill existing MT5: `pkill -f "terminal64"`
-10. Launch via Wine:
+6. Auto-extract `[TesterInputs]` from EA's `.mq5` source (parses `input` declarations)
+7. Convert to Windows CRLF line endings: `sed 's/$/\r/'`
+8. Write config to `C:\autobacktest.ini` (Wine C: root - NO spaces!)
+9. Clean old CSV results
+10. Kill existing MT5: `pkill -f "terminal64"`
+11. Launch via Wine:
     ```bash
     WINEPREFIX="$WINEPREFIX" "$WINE" terminal64.exe /config:C:\\autobacktest.ini /portable 2>/dev/null &
     ```

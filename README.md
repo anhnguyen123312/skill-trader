@@ -228,7 +228,7 @@ curl -fsSL .../setup.sh | bash -s -- test-project && cd test-project
 ### Flow 3: Backtest (CLI)
 
 ```bash
-./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/run.sh SimpleMA_EA XAUUSD M15 2024.01.01 2026.12.31 --no-visual
 # Expected: compile -> backtest -> monitor -> collect, all automatic
 # Verify: .skill-trader/backtest/results/<date>_SimpleMA_EA_XAUUSD_M15.csv exists
 ```
@@ -253,7 +253,7 @@ rm -f .skill-trader/backtest/config/credentials.env
 # Expected: prompts password, authenticates, saves credentials.env
 
 # 5. Backtest should work
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2026.01.31 --no-visual
 # Expected: completes without login popup
 ```
 
@@ -266,7 +266,7 @@ rm -f .skill-trader/backtest/config/credentials.env
 rm -f .skill-trader/backtest/config/credentials.env
 
 # 2. Run backtest
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2026.01.31 --no-visual
 
 # 3. EXPECTED BUG: MT5 shows login popup (Password missing from [Common])
 # FIX: re-run ./.skill-trader/backtest/scripts/login.sh to regenerate credentials.env
@@ -277,13 +277,13 @@ rm -f .skill-trader/backtest/config/credentials.env
 
 ```bash
 # M15 (fast, ~5-10s)
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2024.01.31 --no-visual
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD M15 2024.01.01 2026.01.31 --no-visual
 
 # H1 (medium, ~10-30s)
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD H1 2024.01.01 2024.12.31 --no-visual
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD H1 2024.01.01 2026.12.31 --no-visual
 
 # D1 (fast, ~5s)
-./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD D1 2023.01.01 2025.12.31 --no-visual
+./.skill-trader/backtest/scripts/backtest.sh SimpleMA_EA XAUUSD D1 2023.01.01 2026.12.31 --no-visual
 ```
 
 ## License

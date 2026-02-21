@@ -184,9 +184,23 @@ fi
         -e "s/__LEVERAGE__/$MT5_LEVERAGE/" \
         -e "s/__DELAY__/$MT5_DELAY/" \
         "$TEMPLATE"
+    # Extract default input values from .mq5 source and append [TesterInputs]
+    MQ5_SRC="$PROJECT_ROOT/code/experts/${EA_NAME}.mq5"
+    if [ -f "$MQ5_SRC" ]; then
+        printf "\n[TesterInputs]\n"
+        grep -E '^\s*input\s+' "$MQ5_SRC" | while IFS= read -r line; do
+            # Extract variable name and default value from: input <type> <name> = <value>;
+            varname=$(echo "$line" | sed -E 's/^\s*input\s+\S+\s+(\w+)\s*=.*/\1/')
+            # Extract value: everything between = and ; (trim whitespace)
+            val=$(echo "$line" | sed -E 's/^[^=]+=\s*([^;]+);.*/\1/' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            if [ -n "$varname" ] && [ -n "$val" ]; then
+                printf "%s=%s\n" "$varname" "$val"
+            fi
+        done
+    fi
 } | sed 's/$/\r/' > "$CONFIG_FILE"
 
-echo "[2/4] Config generated (CRLF)"
+echo "[2/4] Config generated (CRLF) with [TesterInputs]"
 
 # Also save a copy in project
 cp "$CONFIG_FILE" "$PLUGIN_DIR/config/last_backtest.ini"
