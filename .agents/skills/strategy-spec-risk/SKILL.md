@@ -25,7 +25,7 @@ description: Convert strategy hypotheses into formal, machine-readable specifica
 3. **1:1 MQL5 Mapping** -- Every parameter in the spec must map to exactly one MQL5 `input` variable or internal constant. No orphaned parameters.
 4. **Defensive Risk Design** -- Risk rules are non-negotiable constraints, not suggestions. The EA must enforce them as hard limits.
 5. **Regime-Aware** -- The spec must define behavior for every market regime. Undefined regime behavior defaults to "do not trade".
-6. **XAUUSD Calibrated** -- All numerical values must be calibrated for gold's characteristics: high pip value, wide spreads, volatile sessions, macro sensitivity.
+6. **XAUUSD Calibrated** -- All numerical values must be calibrated for gold's characteristics: high point value, wide spreads, volatile sessions, macro sensitivity.
 
 **What This Skill Does:**
 - Validates strategy hypotheses for completeness and consistency

@@ -33,7 +33,7 @@ description: Generate production-quality MQL5 Expert Advisor code from formal st
 2. **1:1 Spec Mapping** -- Every JSON spec field maps to exactly one MQL5 input variable or internal constant. No orphaned parameters.
 3. **Defensive Coding** -- All trade operations must check return codes. All indicator handles must be validated. All array operations must check bounds.
 4. **Modular Architecture** -- Separate concerns into .mqh include files: risk management, signal generation, order management, logging.
-5. **XAUUSD Calibrated** -- All defaults and magic numbers calibrated for gold characteristics (spread, volatility, pip value).
+5. **XAUUSD Calibrated** -- All defaults and magic numbers calibrated for gold characteristics (spread, volatility, point value).
 6. **Backtest Ready** -- Code must produce identical results in Strategy Tester as in live. Avoid time-dependent randomness, ensure deterministic behavior.
 
 **What This Skill Does:**
