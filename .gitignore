@@ -8,11 +8,18 @@
 .skill-trader/backtest/config/credentials.env
 .skill-trader/backtest/config/mt5-credentials/
 
-# OMC state
-.omc/
+# OMC runtime state (sessions, checkpoints, agent replays)
+.omc/state/
+.omc/sessions/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
 
 # macOS
 .DS_Store
+Thumbs.db
 
 # Editor
 *.swp
