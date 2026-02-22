@@ -225,7 +225,7 @@ input double      InpPartialClosePct   = 50.0;     // Partial Close %
 input group "=== Risk Management ==="
 input double      InpRiskPercent       = 1.0;      // Risk Per Trade (%)
 input double      InpMaxDailyDD        = 3.0;      // Max Daily Drawdown (%)
-input double      InpMaxTotalDD        = 20.0;     // Max Total Drawdown (%)
+input double      InpMaxTotalDD        = 15.0;     // Max Total Drawdown (%)
 input int         InpMaxConsecLosses   = 5;        // Max Consecutive Losses
 input int         InpMaxDailyTrades    = 5;        // Max Daily Trades
 
@@ -397,6 +397,28 @@ bool RefreshIndicators()
     if(CopyBuffer(g_rsiHandle, 0, 0, 3, g_rsiBuffer) < 3) return false;
     if(CopyBuffer(g_atrHandle, 0, 0, 3, g_atrBuffer) < 3) return false;
     return true;
+}
+```
+
+**Signal Generation (strategy-specific, replace per spec):**
+```mql5
+int GetSignal()
+{
+    //--- Replace this logic with strategy-specific conditions from the spec JSON
+    //--- Return: 1 = BUY, -1 = SELL, 0 = NO SIGNAL
+
+    // Example: EMA crossover + RSI filter
+    if(g_emaFastBuffer[1] > g_emaSlowBuffer[1] &&
+       g_emaFastBuffer[2] <= g_emaSlowBuffer[2] &&
+       g_rsiBuffer[1] < InpRSIOverbought)
+        return 1;
+
+    if(g_emaFastBuffer[1] < g_emaSlowBuffer[1] &&
+       g_emaFastBuffer[2] >= g_emaSlowBuffer[2] &&
+       g_rsiBuffer[1] > InpRSIOversold)
+        return -1;
+
+    return 0;
 }
 ```
 

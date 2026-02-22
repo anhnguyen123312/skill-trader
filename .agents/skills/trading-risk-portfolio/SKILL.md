@@ -70,7 +70,7 @@ Input Validation
 Risk Check Gate (ALWAYS EXECUTE)
 ├─ Recommended lot within broker limits? -> PASS
 ├─ Portfolio heat < 6%? -> PASS
-├─ Max DD projection < 20%? -> PASS
+├─ Max DD projection < 15%? -> PASS
 ├─ Any check fails? -> REDUCE exposure + add WARNING to output
 └─ Multiple checks fail? -> EMERGENCY: recommend pause trading
 ```
@@ -102,7 +102,7 @@ Risk Check Gate (ALWAYS EXECUTE)
 - Account: $10,000 equity
 - Risk per trade: 1.5% (conservative for gold)
 - Max simultaneous positions: 3
-- ATR(H1, 14): $15 (moderate volatility)
+- ATR(H1, 14): $10 (normal volatility, H1 normal range $8-$12)
 - Regime: trending (most common productive regime)
 
 ---
@@ -142,8 +142,8 @@ Where for XAUUSD:
 Example:
 - Equity: $10,000
 - Risk: 1.5% = $150
-- ATR(H1): $15, multiplier: 1.5x, SL = $22.50
-- Lot = $150 / ($22.50 * 100) = $150 / $2,250 = 0.07 lots
+- ATR(H1): $10, multiplier: 1.5x, SL = $15.00
+- Lot = $150 / ($15.00 * 100) = $150 / $1,500 = 0.10 lots
 ```
 
 **Risk percentage guidelines for XAUUSD:**
@@ -285,15 +285,15 @@ Where:
 - Current_ATR = live ATR(H1, 14)
 
 Example:
-- Base lot (at median vol): 0.07
+- Base lot (at median vol): 0.10
 - Current ATR: $25 (elevated)
-- Ratio: $15 / $25 = 0.60
-- Adjusted lot: 0.07 * 0.60 = 0.04 lots (reduced for high vol)
+- Ratio: $10 / $25 = 0.40
+- Adjusted lot: 0.10 * 0.40 = 0.04 lots (reduced for high vol)
 
 Example 2:
-- Current ATR: $10 (low vol)
-- Ratio: $15 / $10 = 1.50 -> cap at 1.25
-- Adjusted lot: 0.07 * 1.25 = 0.09 lots (slightly increased)
+- Current ATR: $7 (low vol)
+- Ratio: $10 / $7 = 1.43 -> cap at 1.25
+- Adjusted lot: 0.10 * 1.25 = 0.13 lots (slightly increased, capped)
 ```
 
 **Cap the upside multiplier at 1.25x** to prevent oversizing in deceptively calm markets (calm before news storm).
@@ -913,7 +913,7 @@ Before ANY calculation:
 ├─ Equity > 0? -> CONTINUE (else: ABORT with "Invalid account data")
 ├─ Risk% between 0.1% and 5%? -> CONTINUE (else: WARN and cap at 2%)
 ├─ SL distance > 0? -> CONTINUE (else: ABORT with "Stop loss required")
-├─ ATR available? -> CONTINUE (else: use default $15 with WARNING)
+├─ ATR available? -> CONTINUE (else: use default $10 with WARNING)
 ├─ Win rate between 0% and 100%? -> CONTINUE (else: REJECT input)
 └─ Lot result >= min lot? -> CONTINUE (else: WARN "account too small for this SL")
 ```
@@ -981,7 +981,7 @@ After EVERY calculation:
 | EA name(s) and strategy type | User | "Unknown EA" |
 | Win rate (rolling 100+ trades) | Backtest report or live history | 50% (neutral assumption) |
 | Avg win / avg loss ratio | Backtest report or live history | 1.0 (break-even assumption) |
-| Max historical drawdown | Backtest report | 20% (conservative estimate) |
+| Max historical drawdown | Backtest report | 15% (conservative estimate, aligns with emergency threshold) |
 | Current open positions | User or EA log | 0 (no open positions) |
 
 ### Optional Inputs (Improve Accuracy)
