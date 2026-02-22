@@ -870,3 +870,22 @@ Before ANY analysis:
 ---
 
 <!-- STATIC CONTEXT BLOCK END -->
+
+## Inputs & Assumptions
+
+| Input | Source | Required | Default |
+|-------|--------|----------|---------|
+| MT5 backtest report (HTML/XML) | Strategy Tester export | YES | None |
+| Strategy specification JSON | strategy-spec-risk output | NO | Infer from report |
+| Trade history CSV | Strategy Tester export | NO | Aggregate metrics only |
+| Baseline performance targets | strategy-researcher hypothesis | NO | Default 33-metric targets |
+
+**Standing Assumptions:**
+- XAUUSD on MT5, 5-digit pricing (0.01 = 1 point)
+- Point value: $1.00 per point per standard lot (100 oz)
+- Test period: 2020-01-01 to present recommended
+- Every tick mode preferred; open prices acceptable with disclaimer
+- All metrics use equity-based calculations (not balance)
+
+## Dynamic Execution Zone
+<!-- Orchestrator injects backtest data and analysis context below this line -->

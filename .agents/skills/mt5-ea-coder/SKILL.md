@@ -20,7 +20,7 @@ description: Generate production-quality MQL5 Expert Advisor code from formal st
 - Explicit section markers for rapid navigation
 
 **Domain:** XAUUSD (Gold/USD) on MetaTrader 5. Gold-specific coding considerations:
-- Pip value per standard lot: ~$10 per $1 move ($100 per $10 move)
+- Point value per standard lot: $1 per $0.01 move; $100 per $1.00 move (1 lot = 100 oz)
 - Typical daily range: $20-$50 (normal), $50-$150+ (news/crisis)
 - Spread: 10-40 points (ECN normal), 80-500+ points (news events)
 - Contract: 1 lot = 100 oz, min lot = 0.01, lot step = 0.01
@@ -100,7 +100,7 @@ Architecture Decision
 **Default assumptions when not specified:**
 - Timeframe: H1
 - Risk per trade: 1%
-- Max drawdown: 20%
+- Max drawdown: 15%
 - Magic number: auto-generate from EA name hash
 - Spread filter: 50 points max
 - Session: London + NY only
@@ -1219,3 +1219,22 @@ Before generating ANY code:
 ---
 
 <!-- STATIC CONTEXT BLOCK END -->
+
+## Inputs & Assumptions
+
+| Input | Source | Required | Default |
+|-------|--------|----------|---------|
+| Strategy Specification JSON | strategy-spec-risk output | YES | None |
+| Target broker type | User/orchestrator | NO | Generic ECN |
+| MT5 build version | User/orchestrator | NO | Latest stable |
+| Existing EA code (for modification) | File system | NO | None |
+
+**Standing Assumptions:**
+- XAUUSD on MT5, 5-digit pricing (0.01 = 1 point)
+- Point value: $1.00 per point per standard lot (100 oz)
+- H1 primary timeframe unless strategy spec overrides
+- Max drawdown default: 15% when no spec provided
+- Risk per trade default: 1% when no spec provided
+
+## Dynamic Execution Zone
+<!-- Orchestrator injects per-task context below this line -->

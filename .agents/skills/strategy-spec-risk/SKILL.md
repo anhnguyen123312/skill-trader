@@ -1415,3 +1415,22 @@ Example:
   Tick_Value = $1.00 per point per lot
   Lot_Size = $100 / (1700 * $1.00) = 0.0588 -> rounds to 0.05 lots
 ```
+
+## Inputs & Assumptions
+
+| Input | Source | Required | Default |
+|-------|--------|----------|---------|
+| Strategy hypothesis document | strategy-researcher output | YES | None |
+| Risk tolerance profile | User/orchestrator | NO | Standard (1% risk, 15% max DD) |
+| Account size | User/orchestrator | NO | $10,000 |
+| Broker type | User/orchestrator | NO | ECN |
+| Existing portfolio context | trading-risk-portfolio | NO | Single EA |
+
+**Standing Assumptions:**
+- XAUUSD on MT5, 5-digit pricing (0.01 = 1 point)
+- Point value: $1.00 per point per standard lot (100 oz)
+- H1 primary timeframe unless hypothesis specifies otherwise
+- All enum fields in JSON template use pipe separators for documentation; agent selects exactly ONE value
+
+## Dynamic Execution Zone
+<!-- Orchestrator injects strategy hypothesis and user context below this line -->

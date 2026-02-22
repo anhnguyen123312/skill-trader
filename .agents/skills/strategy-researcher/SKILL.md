@@ -823,7 +823,7 @@ Each hypothesis receives a quality score (0-100):
 - Seasonal: Within strongest seasonal window (Dec-Apr)
 
 **Gold Trading Constants:**
-- Pip value: 1 standard lot (100 oz) = $1 per $0.01 move = $100 per $1.00 move
+- Point value: 1 standard lot (100 oz) = $1 per $0.01 move = $100 per $1.00 move
 - Typical H1 ATR: $8-12 (normal), $15-25 (volatile)
 - Typical D1 range: $30-60 (normal), $80-150 (event day)
 - Normal spread: $0.20-$0.50 (20-50 points)

@@ -1453,3 +1453,23 @@ Before sending ANY alert:
 ---
 
 <!-- STATIC CONTEXT BLOCK END -->
+
+## Inputs & Assumptions
+
+| Input | Source | Required | Default |
+|-------|--------|----------|---------|
+| EA name and magic number | Running EA | YES | None |
+| Log file path | MT5 data directory | YES | Auto-detect |
+| Alert channel credentials | User config | NO | Print() only |
+| Backtest baseline metrics | ea-backtest-analyst output | NO | Conservative defaults |
+| VPS provider details | User config | NO | Generic VPS |
+
+**Standing Assumptions:**
+- XAUUSD on MT5, 5-digit pricing (0.01 = 1 point)
+- Point value: $1.00 per point per standard lot (100 oz)
+- Heartbeat interval: 60 seconds
+- Spread alert threshold: 80 points
+- Slippage benchmark: 1 point = $1.00 per standard lot
+
+## Dynamic Execution Zone
+<!-- Orchestrator injects live monitoring data below this line -->

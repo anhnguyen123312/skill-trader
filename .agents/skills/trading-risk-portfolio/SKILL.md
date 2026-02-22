@@ -281,7 +281,7 @@ Volatility_ratio = Baseline_ATR / Current_ATR
 Adjusted_lot = Base_lot * Volatility_ratio
 
 Where:
-- Baseline_ATR = 20-period median ATR(H1) = ~$15 (XAUUSD 2024-2026 median)
+- Baseline_ATR = 20-period median ATR(H1) = ~$10 (XAUUSD H1 normal range $8-$12)
 - Current_ATR = live ATR(H1, 14)
 
 Example:
@@ -643,9 +643,18 @@ enum MARKET_REGIME {
     REGIME_CRISIS
 };
 
+// Handles created in OnInit():
+// int g_atrHandle = iATR(_Symbol, PERIOD_H1, 14);
+// int g_adxHandle = iADX(_Symbol, PERIOD_H1, 14);
+
 MARKET_REGIME DetectRegime() {
-    double atr = iATR(_Symbol, PERIOD_H1, 14, 0);
-    double adx = iADX(_Symbol, PERIOD_H1, 14, 0);
+    double atrBuf[], adxBuf[];
+    ArraySetAsSeries(atrBuf, true);
+    ArraySetAsSeries(adxBuf, true);
+    if(CopyBuffer(g_atrHandle, 0, 0, 1, atrBuf) < 1) return REGIME_RANGING;
+    if(CopyBuffer(g_adxHandle, 0, 0, 1, adxBuf) < 1) return REGIME_RANGING;
+    double atr = atrBuf[0];
+    double adx = adxBuf[0];
     double atrMedian = GetMedianATR(20); // 20-period median
 
     // Crisis: extreme volatility
@@ -980,7 +989,7 @@ After EVERY calculation:
 | Input | Impact | Default If Missing |
 |---|---|---|
 | Full trade history CSV | Enables Monte Carlo, regime analysis | Benchmark-based estimates |
-| Current ATR(H1,14) | Precise volatility sizing | $15 (median 2024-2026) |
+| Current ATR(H1,14) | Precise volatility sizing | $10 (normal range $8-$12) |
 | Active market regime | Regime multiplier selection | Auto-detect via ADX+ATR |
 | Correlation data (multi-EA) | Portfolio heat adjustment | Same-direction = 0.95 |
 | Broker spread/slippage stats | Execution cost modeling | ECN defaults (20-40 pts) |
@@ -990,7 +999,7 @@ After EVERY calculation:
 - All calculations use XAUUSD contract specs: 1 lot = 100 oz, $100 per $1.00 move
 - Swap costs are excluded from position sizing (accounted separately in P&L)
 - Risk percentages are based on equity (not balance) to account for floating P&L
-- ATR baseline median: $15 (XAUUSD H1, 2024-2026 average conditions)
+- ATR baseline median: $10 (XAUUSD H1, normal range $8-$12; above $15 = elevated volatility)
 - Kelly criterion always capped at quarter-Kelly or 2%, whichever is lower
 - VaR benchmarks assume 252 trading days per year
 - Correlation values are approximate 2024-2026 averages; they shift in crisis regimes
